@@ -52,7 +52,7 @@ class VerifyView(discord.ui.View):
         self.cog = cog
 
     @discord.ui.button(label="Verify", style=discord.ButtonStyle.success,
-                       custom_id="verify:button", emoji="✅")
+                       custom_id="verify:button", emoji="🙏")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.cog.handle_click(interaction)
 
