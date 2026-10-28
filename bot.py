@@ -50,6 +50,7 @@ class ModBot(commands.Bot):
         )
         await self.db.commit()
         await self.load_extension("antinuke")
+        await self.load_extension("verification")
         await self.tree.sync()
 
     async def log(self, guild: discord.Guild, title: str, description: str,
