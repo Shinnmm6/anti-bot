@@ -107,13 +107,22 @@ class Verification(commands.GroupCog, group_name="verify"):
 
     async def grant(self, interaction: discord.Interaction, member: discord.Member, role: discord.Role):
         self.fails.pop((interaction.guild_id, member.id), None)
+        ok = True
         try:
             await member.add_roles(role, reason="Passed verification")
         except discord.HTTPException:
+            ok = False
             msg = "I couldn't give you the role. Please tell a moderator."
         else:
             msg = "You're verified. Welcome!"
         await interaction.response.send_message(msg, ephemeral=True)
+        if ok:
+            await self.bot.log(interaction.guild, "Member verified",
+                               f"{member.mention} ({member}) passed verification.", discord.Color.green())
+        else:
+            await self.bot.log(interaction.guild, "Verification role failed",
+                               f"{member.mention} passed the challenge but I couldn't give the role. "
+                               "Check that my role is above the member role.", discord.Color.red())
 
     async def check_answer(self, interaction: discord.Interaction, answer: str, given: str):
         cfg = await self.get_config(interaction.guild_id)
@@ -143,6 +152,9 @@ class Verification(commands.GroupCog, group_name="verify"):
             await interaction.response.send_message(
                 f"Wrong answer. Click **Verify** again for a new challenge. ({left} tries left)",
                 ephemeral=True)
+            await self.bot.log(interaction.guild, "Failed verification attempt",
+                               f"{member.mention} ({member}) answered wrong "
+                               f"({self.fails[key]}/{MAX_FAILS}).", discord.Color.orange())
 
     # ---------- timed kick for members who never verify ----------
 
