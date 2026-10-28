@@ -11,6 +11,8 @@ MAX_COMMITS = 15
 DISPLAY_AUTHOR = "v0zv2"  # shown instead of the real Git author name
 # Public updates channel. If it is an Announcement channel, each update is also published
 # (crossposted) so every server following it receives it. Override with PUBLIC_CHANNEL_ID.
+DEFAULT_REPO_OWNER = "Shinnmm6"  # used by /changelogs when Railway doesn't provide repo info
+DEFAULT_REPO_NAME = "anti-bot"
 PUBLIC_CHANNEL_ID = int(os.getenv("PUBLIC_CHANNEL_ID", "1564952852810702970") or 0)
 GITHUB_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
@@ -238,5 +240,42 @@ class Changelog(commands.GroupCog, group_name="changelog",
         await interaction.response.send_message(embed=build_embed(build, []), ephemeral=True)
 
 
+async def fetch_recent_commits(owner: str, repo: str) -> list[tuple[str, str, str]]:
+    """Latest commits on the default branch as (sha, first line, author), oldest first. [] on any problem."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits?per_page={MAX_COMMITS}"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "anti-bot-changelog"}
+    if token := os.getenv("GITHUB_TOKEN"):
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        async with aiohttp.ClientSession(timeout=GITHUB_TIMEOUT, headers=headers) as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json()
+    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+        return []
+    commits = [(c["sha"], (c.get("commit", {}).get("message") or "").split("\n")[0], "") for c in data]
+    return commits[::-1]  # GitHub returns newest first
+
+
+class PublicChangelog(commands.Cog):
+    """/changelogs: anyone can run it and the reply is visible to the whole channel."""
+
+    @app_commands.command(name="changelogs", description="Show the latest bot updates")
+    async def changelogs(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # not ephemeral, so everyone in the channel can see it
+        deploy = current_build() or {}
+        owner = deploy.get("owner") or DEFAULT_REPO_OWNER
+        repo = deploy.get("repo") or DEFAULT_REPO_NAME
+        commits = await fetch_recent_commits(owner, repo)
+        if not commits:
+            return await interaction.followup.send("Couldn't load the updates right now. Try again later.")
+        build = {"sha": commits[-1][0], "message": commits[-1][1], "author": "",
+                 "branch": deploy.get("branch") or "main", "owner": owner, "repo": repo}
+        await interaction.followup.send(embed=build_embed(build, commits),
+                                        allowed_mentions=discord.AllowedMentions.none())
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Changelog(bot))
+    await bot.add_cog(PublicChangelog())
