@@ -9,6 +9,9 @@ from discord.ext import commands
 
 MAX_COMMITS = 15
 DISPLAY_AUTHOR = "v0zv2"  # shown instead of the real Git author name
+# Public updates channel. If it is an Announcement channel, each update is also published
+# (crossposted) so every server following it receives it. Override with PUBLIC_CHANNEL_ID.
+PUBLIC_CHANNEL_ID = int(os.getenv("PUBLIC_CHANNEL_ID", "1564952852810702970") or 0)
 GITHUB_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 
@@ -140,14 +143,38 @@ class Changelog(commands.GroupCog, group_name="changelog",
             return
 
         embed = build_embed(build, await fetch_commits(build, old_sha))
+
+        targets = []
+        public = await self.get_public_channel()
+        if public is not None:
+            targets.append(public)
         for guild in self.bot.guilds:
             channel = self.channel_for(guild)
-            if channel is None:
-                continue
+            if channel is not None and all(channel.id != t.id for t in targets):
+                targets.append(channel)
+
+        for channel in targets:
             try:
-                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+                message = await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
             except discord.HTTPException:
-                pass  # missing permissions or channel deleted
+                continue  # missing permissions or channel deleted
+            if getattr(channel, "is_news", lambda: False)():
+                try:
+                    await message.publish()  # crosspost to servers following this announcement channel
+                except discord.HTTPException:
+                    pass
+
+    async def get_public_channel(self):
+        if not PUBLIC_CHANNEL_ID:
+            return None
+        channel = self.bot.get_channel(PUBLIC_CHANNEL_ID)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(PUBLIC_CHANNEL_ID)
+            except discord.HTTPException:
+                print(f"changelog: can't access public channel {PUBLIC_CHANNEL_ID}")
+                return None
+        return channel
 
     # ---------- listener ----------
 
