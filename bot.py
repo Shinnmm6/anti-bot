@@ -38,6 +38,7 @@ class ModBot(commands.Bot):
         self.msg_times: dict[int, deque] = defaultdict(deque)
         self.join_times: deque = deque()
         self.raid_until = 0.0
+        self.log_channels: dict[int, int] = {}  # guild_id -> channel_id, set with /auditlog set
 
     async def setup_hook(self):
         os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
@@ -55,11 +56,14 @@ class ModBot(commands.Bot):
 
     async def log(self, guild: discord.Guild, title: str, description: str,
                   color: discord.Color = discord.Color.orange()):
-        channel = guild.get_channel(LOG_CHANNEL_ID)
+        channel = guild.get_channel(self.log_channels.get(guild.id) or LOG_CHANNEL_ID)
         if channel:
             embed = discord.Embed(title=title, description=description, color=color,
                                   timestamp=datetime.now(timezone.utc))
-            await channel.send(embed=embed)
+            try:
+                await channel.send(embed=embed)
+            except discord.HTTPException:
+                pass  # missing permissions or channel deleted: don't break whatever was being logged
 
 
 bot = ModBot()
