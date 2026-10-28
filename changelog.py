@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from datetime import datetime, timezone
 
 import aiohttp
@@ -15,6 +16,25 @@ DEFAULT_REPO_OWNER = "Shinnmm6"  # used by /changelogs when Railway doesn't prov
 DEFAULT_REPO_NAME = "anti-bot"
 PUBLIC_CHANNEL_ID = int(os.getenv("PUBLIC_CHANNEL_ID", "1564952852810702970") or 0)
 GITHUB_TIMEOUT = aiohttp.ClientTimeout(total=10)
+
+
+# Commit messages like "Update bot.py" are shown with the slash commands that file provides.
+FILE_COMMANDS = {
+    "bot": "/kick /ban /timeout /warn /warnings /purge",
+    "antilink": "/antilink",
+    "antinuke": "/antinuke",
+    "audit_logs": "/auditlog",
+    "changelog": "/changelog /changelogs",
+    "help_cmd": "/help",
+    "server_profile": "/server",
+    "shop": "/buy",
+    "verification": "/verify",
+}
+
+
+def friendly_message(message: str) -> str:
+    """Replace file names like bot.py with the commands they contain (unknown files are left alone)."""
+    return re.sub(r"\b(\w+)\.py\b", lambda m: FILE_COMMANDS.get(m.group(1), m.group(0)), message)
 
 
 def current_build() -> dict | None:
@@ -75,7 +95,7 @@ def build_embed(build: dict, commits: list[tuple[str, str, str]]) -> discord.Emb
     shown = commits[-MAX_COMMITS:][::-1]  # newest first
     lines = []
     for sha, message, _author in shown:  # real Git author is ignored on purpose
-        lines.append(f"{link(sha)} {message[:150] or 'No message'} — {DISPLAY_AUTHOR}")
+        lines.append(f"{link(sha)} {friendly_message(message)[:150] or 'No message'} — {DISPLAY_AUTHOR}")
     hidden = len(commits) - len(shown)
     if hidden > 0:
         lines.append(f"…and {hidden} older commit{'s' if hidden != 1 else ''}")
