@@ -203,6 +203,11 @@ class AntiNuke(commands.GroupCog, group_name="antinuke"):
         if len(dq) >= max_hits:
             dq.clear()
             await self.trip(guild, user_id, entry.action)
+        elif len(dq) >= 2:
+            await self.bot.log(
+                guild, "Suspicious activity",
+                f"<@{user_id}> did `{entry.action.name}` {len(dq)}/{max_hits} times in {seconds}s.",
+                discord.Color.orange())
 
     async def handle_bot_add(self, entry: discord.AuditLogEntry):
         guild = entry.guild
