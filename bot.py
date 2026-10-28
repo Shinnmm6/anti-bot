@@ -50,7 +50,7 @@ class ModBot(commands.Bot):
                 reason TEXT, created_at TEXT)"""
         )
         await self.db.commit()
-        for ext in ("antinuke", "verification", "audit_logs"):
+        for ext in ("antinuke", "verification", "audit_logs", "antilink", "help_cmd"):
             await self.load_extension(ext)
         await self.tree.sync()
 
@@ -199,9 +199,7 @@ async def on_message(message: discord.Message):
         return
 
     reason = None
-    if INVITE_RE.search(message.content):
-        reason = "Posting invite links"
-    elif len(message.mentions) >= MAX_MENTIONS:
+    if len(message.mentions) >= MAX_MENTIONS:  # invites/links are handled by antilink.py
         reason = "Mass mentions"
     else:
         now = time.monotonic()
