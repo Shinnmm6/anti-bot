@@ -64,6 +64,13 @@ PAGES: dict[str, str] = {
         "`/antilink allow domain` / `/antilink unallow domain`: domains everyone can post (try tenor.com so GIFs work)\n"
         "`/antilink trust user` / `/antilink untrust user`: owner only\n"
         "`/antilink status`: show everything"),
+    "Server profile": (
+        "Change the server's look by attaching an image to the command.\n\n"
+        "`/server profile image`: set the server icon (PNG, JPG, GIF or WebP, up to 8 MB, 512x512 works best)\n"
+        "`/server banner image`: set the server banner (960x540 works best)\n"
+        "`/server clear which`: remove the icon or the banner\n\n"
+        "Needs Manage Server for you AND for the bot. Banners need Server Boost Level 2, and animated "
+        "GIF icons/banners need extra boosts. Every change is logged."),
     "Logging": (
         "`/auditlog set channel`: pick where logs go (make it staff-only)\n"
         "`/auditlog status` and `/auditlog off`\n\n"
