@@ -5,7 +5,7 @@ from discord.ext import commands
 A = discord.AuditLogAction
 
 
-class AuditLogs(commands.GroupCog, group_name="auditlog"):
+class AuditLogs(commands.GroupCog, group_name="auditlog", group_description="Choose where bot logs are sent"):
     """Logs kicks, bans, unbans and timeouts done by humans or other bots.
 
     Actions done by THIS bot (slash commands, automod, verification, anti-nuke)
