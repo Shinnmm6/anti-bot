@@ -87,10 +87,7 @@ def build_embed(build: dict, commits: list[tuple[str, str, str]]) -> discord.Emb
         commits = [(build["sha"], build["message"].split("\n")[0], build["author"])]
 
     def link(sha: str) -> str:
-        short = f"`{sha[:7]}`"
-        if build["owner"] and build["repo"]:
-            return f"[{short}](https://github.com/{build['owner']}/{build['repo']}/commit/{sha})"
-        return short
+        return f"`{sha[:7]}`"  # plain text on purpose, no GitHub link
 
     shown = commits[-MAX_COMMITS:][::-1]  # newest first
     lines = []
