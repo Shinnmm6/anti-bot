@@ -71,6 +71,22 @@ PAGES: dict[str, str] = {
         "`/server clear which`: remove the icon or the banner\n\n"
         "Needs Manage Server for you AND for the bot. Banners need Server Boost Level 2, and animated "
         "GIF icons/banners need extra boosts. Every change is logged."),
+    "Store": (
+        "`/buy [channel]`: posts the store panel (an embed with a **Buy** button) in a channel. "
+        "Needs Manage Server.\n\n"
+        "When a member clicks **Buy**, only they see a dropdown to choose **Self bot** or **Tool Bot**. "
+        "After choosing, they see the product details and the choice is sent to your log channel "
+        "as a *Purchase request*. Each person has a short cooldown to prevent spam.\n\n"
+        "Edit product names, descriptions and prices in the `PRODUCTS` list at the top of `shop.py`."),
+    "Changelog": (
+        "When the bot is redeployed on Railway with new commits, it posts an *update* embed listing "
+        "what changed.\n\n"
+        "`/changelog set channel`: choose the announcement channel (defaults to the log channel)\n"
+        "`/changelog off`: go back to the log channel\n"
+        "`/changelog status`: show the channel and running version\n"
+        "`/changelog preview`: see what an announcement looks like (only you see it)\n\n"
+        "Needs Railway to deploy from GitHub and `DB_PATH` on a volume. The first deploy after "
+        "adding this only records the version and doesn't announce."),
     "Logging": (
         "`/auditlog set channel`: pick where logs go (make it staff-only)\n"
         "`/auditlog status` and `/auditlog off`\n\n"
