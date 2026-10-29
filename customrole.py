@@ -154,7 +154,11 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         await db.execute("CREATE TABLE IF NOT EXISTS custom_role_access (guild_id INTEGER, role_id INTEGER, "
                          "PRIMARY KEY (guild_id, role_id))")
         await db.execute("CREATE TABLE IF NOT EXISTS custom_role_settings (guild_id INTEGER PRIMARY KEY, "
-                         "anchor_role_id INTEGER, boosters INTEGER DEFAULT 1)")
+                         "anchor_role_id INTEGER, boosters INTEGER DEFAULT 1, anchor_side TEXT DEFAULT 'below')")
+        try:  # databases made before "above/below" existed need the new column
+            await db.execute("ALTER TABLE custom_role_settings ADD COLUMN anchor_side TEXT DEFAULT 'below'")
+        except Exception:
+            pass  # the column is already there
         await db.commit()
         async with db.execute("SELECT guild_id, user_id, role_id FROM custom_roles") as cur:
             for guild_id, user_id, role_id in await cur.fetchall():
@@ -162,16 +166,16 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         async with db.execute("SELECT guild_id, role_id FROM custom_role_access") as cur:
             for guild_id, role_id in await cur.fetchall():
                 self.access.setdefault(guild_id, set()).add(role_id)
-        async with db.execute("SELECT guild_id, anchor_role_id, boosters FROM custom_role_settings") as cur:
-            for guild_id, anchor, boosters in await cur.fetchall():
-                self.settings[guild_id] = {"anchor": anchor, "boosters": bool(boosters)}
+        async with db.execute("SELECT guild_id, anchor_role_id, boosters, anchor_side FROM custom_role_settings") as cur:
+            for guild_id, anchor, boosters, side in await cur.fetchall():
+                self.settings[guild_id] = {"anchor": anchor, "boosters": bool(boosters), "side": side or "below"}
         self.bot.add_view(RolePanel(self))
         self.bot.add_view(OldRolePanel())
 
     # ---------- helpers ----------
 
     def cfg(self, guild_id: int) -> dict:
-        return self.settings.get(guild_id, {"anchor": None, "boosters": True})
+        return self.settings.get(guild_id, {"anchor": None, "boosters": True, "side": "below"})
 
     def eligible(self, member: discord.Member) -> bool:
         if member.guild_permissions.administrator:
@@ -184,8 +188,8 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     async def save_settings(self, guild_id: int, **changes):
         cfg = dict(self.cfg(guild_id), **changes)
         await self.bot.db.execute(
-            "INSERT OR REPLACE INTO custom_role_settings (guild_id, anchor_role_id, boosters) VALUES (?,?,?)",
-            (guild_id, cfg["anchor"], int(cfg["boosters"])))
+            "INSERT OR REPLACE INTO custom_role_settings (guild_id, anchor_role_id, boosters, anchor_side) "
+            "VALUES (?,?,?,?)", (guild_id, cfg["anchor"], int(cfg["boosters"]), cfg["side"]))
         await self.bot.db.commit()
         self.settings[guild_id] = cfg
 
@@ -276,25 +280,39 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         await interaction.followup.send(text, ephemeral=True, allowed_mentions=discord.AllowedMentions.none(), **extra)
         await self.bot.log(guild, "Custom role created", f"{member} created the role **{discord.utils.escape_markdown(name)}**")
 
-    def target_position(self, guild: discord.Guild) -> int:
-        """Where custom roles go: the very bottom (just above @everyone), or just under the /role position role."""
-        anchor_id = self.cfg(guild.id)["anchor"]
-        anchor = guild.get_role(anchor_id) if anchor_id else None
+    async def place(self, guild: discord.Guild, role: discord.Role) -> bool:
+        """Move a custom role to where /role position says: the very bottom, or just above/below a chosen role.
+
+        Uses fresh positions from Discord, because moving one role shifts the others. Returns True if it moved.
+        """
+        cfg = self.cfg(guild.id)
+        fresh = {r.id: r for r in await guild.fetch_roles()}
+        current = fresh[role.id].position if role.id in fresh else role.position
+        anchor = fresh.get(cfg["anchor"]) if cfg["anchor"] else None
         if anchor is None:
-            return 1
-        return max(1, min(anchor.position, guild.me.top_role.position) - 1)
+            target = 1
+        else:
+            a = anchor.position
+            if cfg["side"] == "above":
+                target = a + 1 if current > a else a   # moving down or up changes where the gap opens
+            else:
+                target = a if current > a else a - 1
+            top = fresh[guild.me.top_role.id].position if guild.me.top_role.id in fresh else guild.me.top_role.position
+            target = max(1, min(target, top - 1))      # I can only place roles below my own top role
+        if target == current:
+            return False
+        await role.edit(position=target, reason="Custom role placement")
+        return True
 
     async def create_for(self, member: discord.Member, name: str, value: int | None) -> discord.Role:
         guild = member.guild
         role = await guild.create_role(
             name=name, colour=discord.Colour(value or 0), permissions=discord.Permissions.none(),
             hoist=False, mentionable=False, reason=f"Custom role for {member}")
-        target = self.target_position(guild)
-        if target > 1:  # a new role already starts at the bottom, so the default needs no move
-            try:
-                await role.edit(position=target)
-            except discord.HTTPException:
-                pass  # the role still works, it just stays at the bottom of the list
+        try:
+            await self.place(guild, role)
+        except discord.HTTPException:
+            pass  # the role still works, it just stays at the bottom of the list
         try:
             await member.add_roles(role, reason="Custom role")
         except discord.HTTPException:
@@ -523,28 +541,37 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             "Server boosters can no longer make a custom role (only the allowed roles can).", ephemeral=True)
 
     @app_commands.command(name="position", description="Choose where custom roles sit (leave empty for the very bottom)")
-    @app_commands.describe(role="Place custom roles just under this role. Leave empty to put them at the bottom")
+    @app_commands.describe(role="The role to place custom roles next to. Leave empty to put them at the bottom",
+                           placement="Above or below that role (default: below)")
+    @app_commands.choices(placement=[app_commands.Choice(name="Below the role", value="below"),
+                                     app_commands.Choice(name="Above the role", value="above")])
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(manage_roles=True)
-    async def position(self, interaction: discord.Interaction, role: discord.Role | None = None):
+    async def position(self, interaction: discord.Interaction, role: discord.Role | None = None,
+                       placement: app_commands.Choice[str] | None = None):
         guild = interaction.guild
-        if role is not None and role >= guild.me.top_role:
-            return await interaction.response.send_message("Pick a role below my highest role.", ephemeral=True)
+        side = placement.value if placement else "below"
+        if role is not None:
+            top = guild.me.top_role
+            if role.position > top.position or (side == "above" and role.position >= top.position):
+                return await interaction.response.send_message(
+                    "I can only place roles below my own highest role. Pick a lower role, or move my role up.",
+                    ephemeral=True)
         await interaction.response.defer(ephemeral=True)
-        await self.save_settings(guild.id, anchor=role.id if role else None)
+        await self.save_settings(guild.id, anchor=role.id if role else None, side=side)
 
-        target, moved = self.target_position(guild), 0
+        moved = 0
         for (gid, uid), role_id in list(self.owned.items()):
             existing = guild.get_role(role_id) if gid == guild.id else None
-            if existing is None or existing.position == target:
+            if existing is None:
                 continue
             try:
-                await existing.edit(position=target, reason=f"Custom roles moved by {interaction.user}")
-                moved += 1
+                if await self.place(guild, existing):
+                    moved += 1
             except discord.HTTPException:
                 pass
-        where = f"just under {role.mention}" if role else "at the very bottom of the role list"
+        where = f"just {side} {role.mention}" if role else "at the very bottom of the role list"
         await interaction.followup.send(
             f"Custom roles now go {where}." + (f" Moved {moved} existing role{'s' if moved != 1 else ''}." if moved else ""),
             ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
@@ -556,7 +583,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         guild = interaction.guild
         cfg = self.cfg(guild.id)
         allowed = ", ".join(f"<@&{r}>" for r in sorted(self.access.get(guild.id, set()))) or "none"
-        anchor = f"just under <@&{cfg['anchor']}>" if cfg["anchor"] else "at the very bottom"
+        anchor = f"just {cfg['side']} <@&{cfg['anchor']}>" if cfg["anchor"] else "at the very bottom"
         count = sum(1 for g, _ in self.owned if g == guild.id)
         await interaction.response.send_message(
             f"Boosters allowed: **{'yes' if cfg['boosters'] else 'no'}**\nAllowed roles: {allowed}\n"
