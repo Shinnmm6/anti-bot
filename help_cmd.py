@@ -72,6 +72,18 @@ PAGES: dict[str, str] = {
         "`/invites top`: the best inviters. `/invites who member`: who invited someone\n\n"
         "The bot needs the **Manage Server** permission to read invites. It can only track people who join "
         "after it was added."),
+    "Custom roles": (
+        "`/role custom name [color]`: server boosters and members with an allowed role make their own role. "
+        "It is given to them straight away and has **no permissions**, only a name and a color "
+        "(hex like `#ff66aa`). Run it again to rename or recolor it. `/role remove` deletes it.\n\n"
+        "**Staff (Manage Server)**\n"
+        "`/role allow role` / `/role disallow role`: members with that role can make a custom role\n"
+        "`/role boosters enabled`: let boosters use it (on by default)\n"
+        "`/role position role`: new custom roles go just under this role, so their color shows\n"
+        "`/role status`: show the settings\n\n"
+        "A custom role is deleted if the member stops boosting, loses the allowed role or leaves. "
+        "Names must be unique, can't contain @ and follow the word filter. "
+        "The bot needs Manage Roles and its role must be above where custom roles go."),
     "Giveaways": (
         "`/giveaway start prize duration [winners] [channel] [required_role]`: duration like `30m`, `2h`, `1d12h`\n"
         "Members press **Enter** (press again to leave). The button shows the live entry count.\n"

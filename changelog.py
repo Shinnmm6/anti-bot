@@ -36,6 +36,7 @@ FILE_COMMANDS = {
     "leveling": "/leveling",
     "invites": "/invites",
     "giveaway": "/giveaway",
+    "customrole": "/role",
     "verification": "/verify",
 }
 
