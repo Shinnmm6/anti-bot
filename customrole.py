@@ -10,6 +10,41 @@ MAX_NAME_LENGTH = 32
 HEX_RE = re.compile(r"^(?:#|0x)?([0-9a-fA-F]{6})$")
 
 
+class RoleForm(discord.ui.Modal, title="Create your custom role"):
+    """The pop-up form opened by the panel buttons."""
+
+    name = discord.ui.TextInput(label="Role name", placeholder="Pick a name", min_length=1, max_length=MAX_NAME_LENGTH)
+    color = discord.ui.TextInput(label="Color (hex code, optional)", placeholder="#ff66aa", required=False,
+                                 max_length=7)
+
+    def __init__(self, cog: "CustomRoles", current: discord.Role | None):
+        super().__init__()
+        self.cog = cog
+        if current is not None:  # editing: start from what they have now
+            self.name.default = current.name
+            if current.colour.value:
+                self.color.default = f"#{current.colour.value:06x}"
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.cog.apply(interaction, str(self.name.value), str(self.color.value).strip() or None)
+
+
+class RolePanel(discord.ui.View):
+    """The two buttons under the panel message. Persistent: they keep working after the bot restarts."""
+
+    def __init__(self, cog: "CustomRoles"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Booster", style=discord.ButtonStyle.primary, custom_id="role:booster")
+    async def booster(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.panel_click(interaction, "booster")
+
+    @discord.ui.button(label="Selected role", style=discord.ButtonStyle.secondary, custom_id="role:selected")
+    async def selected(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.panel_click(interaction, "selected")
+
+
 class CustomRoles(commands.GroupCog, group_name="role", group_description="Custom roles for boosters and selected roles"):
     """Eligible members make ONE cosmetic role (a name and a color, no permissions) that is given to them.
 
@@ -41,6 +76,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         async with db.execute("SELECT guild_id, anchor_role_id, boosters FROM custom_role_settings") as cur:
             for guild_id, anchor, boosters in await cur.fetchall():
                 self.settings[guild_id] = {"anchor": anchor, "boosters": bool(boosters)}
+        self.bot.add_view(RolePanel(self))
 
     # ---------- helpers ----------
 
@@ -85,11 +121,18 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(manage_roles=True)
     async def custom(self, interaction: discord.Interaction, name: str, color: str | None = None):
+        await self.apply(interaction, name, color)
+
+    async def apply(self, interaction: discord.Interaction, name: str, color: str | None):
+        """Create or update the member's role. Shared by /role custom and the panel's pop-up form."""
         member, guild = interaction.user, interaction.guild
         if not self.eligible(member):
             return await interaction.response.send_message(
                 "Custom roles are for server boosters and members with a selected role. "
                 "Ask the staff if you think you should have access.", ephemeral=True)
+        if not guild.me.guild_permissions.manage_roles:
+            return await interaction.response.send_message(
+                "I need the Manage Roles permission to do that. Ask an admin to give it to me.", ephemeral=True)
 
         name = " ".join(name.split())
         if not name or len(name) > MAX_NAME_LENGTH:
@@ -162,6 +205,68 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
                                   (guild.id, member.id, role.id))
         await self.bot.db.commit()
         return role
+
+    # ---------- /role setup and the panel buttons ----------
+
+    @app_commands.command(name="setup", description="Post the custom role panel (Booster and Selected role buttons)")
+    @app_commands.describe(channel="Where to post the panel",
+                           selected_role="Members with this role can use the Selected role button "
+                                         "(add more later with /role allow)")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def setup_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel,
+                        selected_role: discord.Role | None = None):
+        perms = channel.permissions_for(interaction.guild.me)
+        if not (perms.view_channel and perms.send_messages and perms.embed_links):
+            return await interaction.response.send_message(
+                f"I need View Channel, Send Messages and Embed Links in {channel.mention}.", ephemeral=True)
+        if selected_role is not None:
+            if selected_role.is_default():
+                return await interaction.response.send_message("Pick a specific role, not @everyone.", ephemeral=True)
+            await self.bot.db.execute("INSERT OR IGNORE INTO custom_role_access (guild_id, role_id) VALUES (?,?)",
+                                      (interaction.guild_id, selected_role.id))
+            await self.bot.db.commit()
+            self.access.setdefault(interaction.guild_id, set()).add(selected_role.id)
+
+        embed = discord.Embed(
+            title="Create your custom role",
+            description="Make your own role with a name and a color of your choice. It has no permissions, "
+                        "it only shows next to your name.\n\n"
+                        "**Booster**: for members who boost this server.\n"
+                        "**Selected role**: for members who have the selected role.\n\n"
+                        "Press the button that applies to you. Press it again any time to rename or recolor your role.",
+            color=discord.Color(0xF47FFF))
+        try:
+            await channel.send(embed=embed, view=RolePanel(self))
+        except discord.HTTPException:
+            return await interaction.response.send_message("I couldn't post in that channel.", ephemeral=True)
+        note = ""
+        if not self.access.get(interaction.guild_id):
+            note = " The Selected role button won't work until you pick a role with `/role allow` or `selected_role`."
+        await interaction.response.send_message(f"Panel posted in {channel.mention}.{note}", ephemeral=True)
+
+    async def panel_click(self, interaction: discord.Interaction, kind: str):
+        member, gid = interaction.user, interaction.guild_id
+        if kind == "booster":
+            if not self.cfg(gid)["boosters"]:
+                return await interaction.response.send_message(
+                    "Booster roles are turned off on this server.", ephemeral=True)
+            if member.premium_since is None:
+                return await interaction.response.send_message(
+                    "This button is only for server boosters. Boost the server to unlock it.", ephemeral=True)
+        else:
+            allowed = self.access.get(gid, set())
+            if not allowed:
+                return await interaction.response.send_message(
+                    "No selected role has been set up yet. Ask the staff.", ephemeral=True)
+            if not any(r.id in allowed for r in member.roles):
+                roles = ", ".join(f"<@&{r}>" for r in sorted(allowed))
+                return await interaction.response.send_message(
+                    f"This button is only for members with the selected role: {roles}", ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none())
+        own_id = self.owned.get((gid, member.id))
+        await interaction.response.send_modal(RoleForm(self, interaction.guild.get_role(own_id) if own_id else None))
 
     # ---------- /role remove ----------
 
