@@ -51,6 +51,33 @@ PAGES: dict[str, str] = {
         "- `ping` pings one role above the announcement. Mentions typed inside the text never ping anyone.\n"
         "- Add a picture with `image` or an `image_url` link (PNG, JPG, GIF or WebP, up to 8 MB).\n\n"
         "The bot needs View Channel, Send Messages, Embed Links and Attach Files there. Each post is logged."),
+    "Tickets": (
+        "Private support channels opened with a button: **Partnership**, **Claim rewards**, **Question**, **Other**.\n\n"
+        "`/ticket setup channel category staff_role [log_channel]`: posts the panel (needs Manage Server)\n"
+        "- Each member can have one open ticket. Only they and `staff_role` can see it.\n"
+        "- The **Close ticket** button (owner or staff) deletes the channel and sends a text transcript to `log_channel`.\n"
+        "- `/ticket add member` / `/ticket remove member`: staff only, inside a ticket\n\n"
+        "The bot needs Manage Channels and Manage Roles."),
+    "Leveling": (
+        "Members earn 15-25 XP per message, at most once a minute, and get a level-up message.\n\n"
+        "`/leveling on [channel]` / `/leveling off`: turn it on (it starts OFF) and pick where level-ups are posted\n"
+        "`/leveling rank [member]` and `/leveling top`: anyone can use these\n"
+        "`/leveling reward level role`: give a role at a level. `/leveling unreward level`, `/leveling rewards`\n"
+        "`/leveling reset member`: set someone's XP to zero\n\n"
+        "Reward roles must be below the bot's highest role."),
+    "Invite tracker": (
+        "Tracks which invite each new member used and credits the inviter.\n\n"
+        "`/invites setup channel`: announce \"X joined, invited by Y\" there. `/invites off` stops the messages\n"
+        "`/invites stats [member]`: active, total, left and fake invites (fake = account under 3 days old)\n"
+        "`/invites top`: the best inviters. `/invites who member`: who invited someone\n\n"
+        "The bot needs the **Manage Server** permission to read invites. It can only track people who join "
+        "after it was added."),
+    "Giveaways": (
+        "`/giveaway start prize duration [winners] [channel] [required_role]`: duration like `30m`, `2h`, `1d12h`\n"
+        "Members press **Enter** (press again to leave). The button shows the live entry count.\n"
+        "`/giveaway end id`: finish early. `/giveaway reroll id [winners]`: new winners. `/giveaway list`\n\n"
+        "The ID is in the giveaway's footer. Winners who left the server are skipped. Giveaways survive bot "
+        "restarts as long as `DB_PATH` is on a volume. Needs Manage Server."),
     "Word filter": (
         "Deletes messages that contain words you choose. Edited messages are checked too, and staff with "
         "Manage Messages are exempt. Needs Manage Server to change.\n\n"

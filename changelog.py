@@ -32,6 +32,10 @@ FILE_COMMANDS = {
     "greetings": "/welcome /bye /booster",
     "wordfilter": "/filter",
     "partnership": "/partnership",
+    "tickets": "/ticket",
+    "leveling": "/leveling",
+    "invites": "/invites",
+    "giveaway": "/giveaway",
     "verification": "/verify",
 }
 
