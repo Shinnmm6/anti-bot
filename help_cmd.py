@@ -30,6 +30,27 @@ PAGES: dict[str, str] = {
         "(needs Manage Channels)\n"
         "`/userinfo [member]`: account age, join date, roles and timeout status. Anyone can use it.\n\n"
         "The bot needs the same permission as you for each command. Everything except `/userinfo` is logged."),
+    "Welcome, bye & booster": (
+        "Post a custom embed when someone joins, leaves or boosts the server. Needs Manage Server.\n\n"
+        "`/welcome setup channel [title] [message] [image] [image_url]`\n"
+        "`/bye setup ...` and `/booster setup ...` take the same options\n"
+        "`/welcome preview`, `/welcome status`, `/welcome off` (same for `/bye` and `/booster`)\n\n"
+        "**Image:** attach one with `image`, or paste a link (a Discord CDN link works) in `image_url`. "
+        "The bot saves its own copy, so it still shows after Discord's links expire. PNG, JPG, GIF or WebP, "
+        "up to 8 MB. Run setup again with only the changes you want, or add `clear_image` to remove the picture.\n\n"
+        "**Placeholders** in the title and message: `{user}` (mention), `{name}`, `{server}`, `{count}` "
+        "(member count).\n"
+        "The bot needs View Channel, Send Messages, Embed Links and Attach Files in that channel. "
+        "Brand-new accounts that anti-raid kicks are not greeted. `DB_PATH` must be on a volume so settings survive redeploys."),
+    "Word filter": (
+        "Deletes messages that contain words you choose. Edited messages are checked too, and staff with "
+        "Manage Messages are exempt. Needs Manage Server to change.\n\n"
+        "`/filter add words`: separate several with commas. Phrases work. `bad*` also catches `badword`\n"
+        "`/filter remove words`, `/filter list`, `/filter clear`\n"
+        "`/filter action`: delete only, delete + warning, or delete + 10 min timeout\n\n"
+        "Matches whole words and ignores capitals, accents and invisible characters, so `ass` won't catch "
+        "`class`. Replies to these commands are private. The bot needs Manage Messages (and Moderate Members "
+        "for timeouts). Filter hits are sent to your log channel."),
     "Auto-mod & anti-raid": (
         "**Auto-mod** (staff with Manage Messages are exempt)\n"
         "- 5 messages in 5 seconds: message deleted + 10 min timeout\n"

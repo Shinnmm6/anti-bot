@@ -29,6 +29,8 @@ FILE_COMMANDS = {
     "server_profile": "/server",
     "shop": "/buy",
     "modtools": "/unban /clearwarnings /slowmode /lock /unlock /userinfo",
+    "greetings": "/welcome /bye /booster",
+    "wordfilter": "/filter",
     "verification": "/verify",
 }
 
