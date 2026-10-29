@@ -11,13 +11,33 @@ MAX_NAME_LENGTH = 32
 ICON_MAX_BYTES = 256 * 1024  # Discord's limit for role icons
 HEX_RE = re.compile(r"^(?:#|0x)?([0-9a-fA-F]{6})$")
 
+# Ready-made colors, so nobody has to know a hex code. Discord lists at most 25 options in a dropdown.
+COLORS = {
+    "Red": 0xE74C3C, "Dark Red": 0x992D22, "Orange": 0xE67E22, "Peach": 0xFFB38A, "Gold": 0xF1C40F,
+    "Yellow": 0xFFEB3B, "Lime": 0xA3E635, "Green": 0x2ECC71, "Dark Green": 0x1F8B4C, "Teal": 0x1ABC9C,
+    "Cyan": 0x22D3EE, "Sky Blue": 0x3498DB, "Blue": 0x2563EB, "Dark Blue": 0x1F3A93, "Purple": 0x9B59B6,
+    "Violet": 0x7C3AED, "Magenta": 0xE91E8C, "Pink": 0xFF66AA, "Hot Pink": 0xFF1493, "Rose": 0xFB7185,
+    "Brown": 0x8B5A2B, "White": 0xFFFFFF, "Grey": 0x95A5A6, "Dark Grey": 0x23272A,
+}
+COLOR_LOOKUP = {name.lower().replace(" ", ""): value for name, value in COLORS.items()}
+
+
+def parse_color(text: str) -> int | None:
+    """A color name ('hot pink', 'Sky-Blue') or a hex code ('#ff66aa'). None if it is neither."""
+    text = text.strip()
+    key = re.sub(r"[\s_-]+", "", text.lower())
+    if key in COLOR_LOOKUP:
+        return COLOR_LOOKUP[key]
+    match = HEX_RE.match(text)
+    return int(match.group(1), 16) if match else None
+
 
 class RoleForm(discord.ui.Modal, title="Create your custom role"):
     """The pop-up form opened by the panel buttons."""
 
     name = discord.ui.TextInput(label="Role name", placeholder="Pick a name", min_length=1, max_length=MAX_NAME_LENGTH)
-    color = discord.ui.TextInput(label="Color (hex code, optional)", placeholder="#ff66aa", required=False,
-                                 max_length=7)
+    color = discord.ui.TextInput(label="Color (optional)", placeholder="pink, sky blue, or a hex code like #ff66aa",
+                                 required=False, max_length=20)
 
     def __init__(self, cog: "CustomRoles", current: discord.Role | None):
         super().__init__()
@@ -29,6 +49,35 @@ class RoleForm(discord.ui.Modal, title="Create your custom role"):
 
     async def on_submit(self, interaction: discord.Interaction):
         await self.cog.apply(interaction, str(self.name.value), str(self.color.value).strip() or None)
+
+
+class ColorSelect(discord.ui.Select):
+    def __init__(self, cog: "CustomRoles"):
+        super().__init__(placeholder="Pick a color", min_values=1, max_values=1,
+                         options=[discord.SelectOption(label=name, value=name, description=f"#{value:06x}")
+                                  for name, value in COLORS.items()])
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.cog.set_color(interaction, self.values[0])
+
+
+class ColorMenu(discord.ui.View):
+    """A color dropdown (shown after creating a role, and by the Change Role button)."""
+
+    def __init__(self, cog: "CustomRoles", show_rename: bool):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.add_item(ColorSelect(cog))
+        if show_rename:
+            button = discord.ui.Button(label="Rename or type a color", style=discord.ButtonStyle.secondary)
+            button.callback = self.rename
+            self.add_item(button)
+
+    async def rename(self, interaction: discord.Interaction):
+        own_id = self.cog.owned.get((interaction.guild_id, interaction.user.id))
+        own = interaction.guild.get_role(own_id) if own_id else None
+        await interaction.response.send_modal(RoleForm(self.cog, own))
 
 
 class IconForm(discord.ui.Modal, title="Role icon"):
@@ -158,7 +207,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     # ---------- /role custom ----------
 
     @app_commands.command(name="custom", description="Create or change your own custom role (name and color only)")
-    @app_commands.describe(name="The role name", color="Hex color such as #ff66aa (optional)")
+    @app_commands.describe(name="The role name", color="A color name like pink or sky blue, or a hex code (optional)")
     @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(manage_roles=True)
     async def custom(self, interaction: discord.Interaction, name: str, color: str | None = None):
@@ -190,11 +239,11 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
 
         value = None
         if color:
-            match = HEX_RE.match(color.strip())
-            if not match:
+            value = parse_color(color)
+            if value is None:
                 return await interaction.response.send_message(
-                    "The color must be a hex code like `#ff66aa`.", ephemeral=True)
-            value = int(match.group(1), 16)
+                    "I don't know that color. Use a name like `pink` or `sky blue`, a hex code like `#ff66aa`, "
+                    "or leave it empty and pick one from the dropdown afterwards.", ephemeral=True)
 
         own_id = self.owned.get((guild.id, member.id))
         own = guild.get_role(own_id) if own_id else None
@@ -219,8 +268,12 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         except discord.HTTPException:
             return await interaction.followup.send("Discord refused that. The server may be at its role limit.",
                                                    ephemeral=True)
-        await interaction.followup.send(f"Your custom role is ready and has been given to you: {role.mention}",
-                                        ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        extra = {}
+        text = f"Your custom role is ready and has been given to you: {role.mention}"
+        if value is None:  # no color was chosen yet, so offer the dropdown
+            text += "\nPick a color for it below, or ignore this to keep it plain."
+            extra["view"] = ColorMenu(self, show_rename=False)
+        await interaction.followup.send(text, ephemeral=True, allowed_mentions=discord.AllowedMentions.none(), **extra)
         await self.bot.log(guild, "Custom role created", f"{member} created the role **{discord.utils.escape_markdown(name)}**")
 
     async def create_for(self, member: discord.Member, name: str, value: int | None) -> discord.Role:
@@ -294,9 +347,9 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             title="Create your custom role",
             description="Make your own role with a name and a color of your choice. It has no permissions, "
                         "it only shows next to your name.\n\n" + "\n".join(lines)
-                        + "\n\nPress **Create Role** to make your role, **Change Role** to rename or "
-                          "recolor it, or **Role Icon** to add a small emoji or image next to it "
-                          "(the server needs Boost Level 2 for icons).",
+                        + "\n\nPress **Create Role** to make your role, then pick its color from a list. "
+                          "Press **Change Role** to pick a new color or rename it, or **Role Icon** to add a "
+                          "small emoji or image next to it (the server needs Boost Level 2 for icons).",
             color=discord.Color(0xF47FFF))
 
     def who_can_text(self, guild: discord.Guild) -> str:
@@ -328,7 +381,31 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
                 return await interaction.response.send_message(
                     "Role icons need this server to reach Boost Level 2.", ephemeral=True)
             return await interaction.response.send_modal(IconForm(self))
-        await interaction.response.send_modal(RoleForm(self, own))
+        if action == "change":
+            return await interaction.response.send_message(
+                "What would you like to change? Pick a new color from the dropdown, or press the button "
+                "to rename your role or type your own color.", view=ColorMenu(self, show_rename=True), ephemeral=True)
+        await interaction.response.send_modal(RoleForm(self, None))
+
+    async def set_color(self, interaction: discord.Interaction, color_name: str):
+        """Called when someone picks a color in the dropdown."""
+        guild, member = interaction.guild, interaction.user
+        own_id = self.owned.get((guild.id, member.id))
+        own = guild.get_role(own_id) if own_id else None
+        if own is None or not self.eligible(member):
+            return await interaction.response.edit_message(content="You don't have a custom role right now.", view=None)
+        try:
+            await own.edit(colour=discord.Colour(COLORS[color_name]), reason=f"Color changed by {member}")
+        except discord.HTTPException:
+            return await interaction.response.edit_message(
+                content="I couldn't change the color. Ask an admin to move my role higher.", view=None)
+        await interaction.response.edit_message(content=f"Your role color is now **{color_name}**.", view=None)
+
+    @custom.autocomplete("color")
+    async def color_autocomplete(self, interaction: discord.Interaction, current: str):
+        key = current.lower().replace(" ", "")
+        names = [n for n in COLORS if key in n.lower().replace(" ", "")]
+        return [app_commands.Choice(name=n, value=n) for n in names[:25]]
 
     # ---------- role icon ----------
 
