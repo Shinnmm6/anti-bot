@@ -31,6 +31,7 @@ FILE_COMMANDS = {
     "modtools": "/unban /clearwarnings /slowmode /lock /unlock /userinfo",
     "greetings": "/welcome /bye /booster",
     "wordfilter": "/filter",
+    "partnership": "/partnership",
     "verification": "/verify",
 }
 

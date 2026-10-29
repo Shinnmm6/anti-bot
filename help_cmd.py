@@ -42,6 +42,15 @@ PAGES: dict[str, str] = {
         "(member count).\n"
         "The bot needs View Channel, Send Messages, Embed Links and Attach Files in that channel. "
         "Brand-new accounts that anti-raid kicks are not greeted. `DB_PATH` must be on a volume so settings survive redeploys."),
+    "Partnership": (
+        "`/partnership message [channel] [ping] [image] [image_url] [title]`: the bot posts your "
+        "partnership announcement as a gold embed, so it comes from the bot and not from you. "
+        "Needs Manage Server.\n\n"
+        "- The first time, choose a `channel`. It's remembered, so next time just type the message.\n"
+        "- Type `\\n` in the message for a new line.\n"
+        "- `ping` pings one role above the announcement. Mentions typed inside the text never ping anyone.\n"
+        "- Add a picture with `image` or an `image_url` link (PNG, JPG, GIF or WebP, up to 8 MB).\n\n"
+        "The bot needs View Channel, Send Messages, Embed Links and Attach Files there. Each post is logged."),
     "Word filter": (
         "Deletes messages that contain words you choose. Edited messages are checked too, and staff with "
         "Manage Messages are exempt. Needs Manage Server to change.\n\n"
