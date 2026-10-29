@@ -276,19 +276,25 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         await interaction.followup.send(text, ephemeral=True, allowed_mentions=discord.AllowedMentions.none(), **extra)
         await self.bot.log(guild, "Custom role created", f"{member} created the role **{discord.utils.escape_markdown(name)}**")
 
+    def target_position(self, guild: discord.Guild) -> int:
+        """Where custom roles go: the very bottom (just above @everyone), or just under the /role position role."""
+        anchor_id = self.cfg(guild.id)["anchor"]
+        anchor = guild.get_role(anchor_id) if anchor_id else None
+        if anchor is None:
+            return 1
+        return max(1, min(anchor.position, guild.me.top_role.position) - 1)
+
     async def create_for(self, member: discord.Member, name: str, value: int | None) -> discord.Role:
         guild = member.guild
         role = await guild.create_role(
             name=name, colour=discord.Colour(value or 0), permissions=discord.Permissions.none(),
             hoist=False, mentionable=False, reason=f"Custom role for {member}")
-        # Put it just under the anchor role (default: just under my own top role) so its color shows.
-        anchor_id = self.cfg(guild.id)["anchor"]
-        anchor = guild.get_role(anchor_id) if anchor_id else None
-        top = min(anchor.position if anchor else guild.me.top_role.position, guild.me.top_role.position)
-        try:
-            await role.edit(position=max(1, top - 1))
-        except discord.HTTPException:
-            pass  # the role still works, it just stays near the bottom of the list
+        target = self.target_position(guild)
+        if target > 1:  # a new role already starts at the bottom, so the default needs no move
+            try:
+                await role.edit(position=target)
+            except discord.HTTPException:
+                pass  # the role still works, it just stays at the bottom of the list
         try:
             await member.add_roles(role, reason="Custom role")
         except discord.HTTPException:
@@ -516,16 +522,31 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             "Server boosters can now make a custom role." if enabled else
             "Server boosters can no longer make a custom role (only the allowed roles can).", ephemeral=True)
 
-    @app_commands.command(name="position", description="Place new custom roles just under this role (so their colors show)")
+    @app_commands.command(name="position", description="Choose where custom roles sit (leave empty for the very bottom)")
+    @app_commands.describe(role="Place custom roles just under this role. Leave empty to put them at the bottom")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def position(self, interaction: discord.Interaction, role: discord.Role):
-        if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message(
-                "Pick a role below my highest role.", ephemeral=True)
-        await self.save_settings(interaction.guild_id, anchor=role.id)
-        await interaction.response.send_message(
-            f"New custom roles will be placed just under {role.mention}. Existing ones don't move.",
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def position(self, interaction: discord.Interaction, role: discord.Role | None = None):
+        guild = interaction.guild
+        if role is not None and role >= guild.me.top_role:
+            return await interaction.response.send_message("Pick a role below my highest role.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        await self.save_settings(guild.id, anchor=role.id if role else None)
+
+        target, moved = self.target_position(guild), 0
+        for (gid, uid), role_id in list(self.owned.items()):
+            existing = guild.get_role(role_id) if gid == guild.id else None
+            if existing is None or existing.position == target:
+                continue
+            try:
+                await existing.edit(position=target, reason=f"Custom roles moved by {interaction.user}")
+                moved += 1
+            except discord.HTTPException:
+                pass
+        where = f"just under {role.mention}" if role else "at the very bottom of the role list"
+        await interaction.followup.send(
+            f"Custom roles now go {where}." + (f" Moved {moved} existing role{'s' if moved != 1 else ''}." if moved else ""),
             ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
     @app_commands.command(name="status", description="Show who can make custom roles and how many exist")
@@ -535,7 +556,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         guild = interaction.guild
         cfg = self.cfg(guild.id)
         allowed = ", ".join(f"<@&{r}>" for r in sorted(self.access.get(guild.id, set()))) or "none"
-        anchor = f"<@&{cfg['anchor']}>" if cfg["anchor"] else "just under my top role"
+        anchor = f"just under <@&{cfg['anchor']}>" if cfg["anchor"] else "at the very bottom"
         count = sum(1 for g, _ in self.owned if g == guild.id)
         await interaction.response.send_message(
             f"Boosters allowed: **{'yes' if cfg['boosters'] else 'no'}**\nAllowed roles: {allowed}\n"
