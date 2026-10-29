@@ -28,6 +28,7 @@ FILE_COMMANDS = {
     "help_cmd": "/help",
     "server_profile": "/server",
     "shop": "/buy",
+    "modtools": "/unban /clearwarnings /slowmode /lock /unlock /userinfo",
     "verification": "/verify",
 }
 

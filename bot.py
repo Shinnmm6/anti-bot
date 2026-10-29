@@ -51,7 +51,7 @@ class ModBot(commands.Bot):
         )
         await self.db.commit()
         for ext in ("antinuke", "verification", "audit_logs", "antilink", "help_cmd", "server_profile",
-                    "changelog", "shop"):
+                    "changelog", "shop", "modtools"):
             await self.load_extension(ext)
         await self.tree.sync()
 

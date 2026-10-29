@@ -22,6 +22,14 @@ PAGES: dict[str, str] = {
         "`/warnings member`: list a member's last 10 warnings\n"
         "`/purge amount`: delete 1 to 100 recent messages (needs Manage Messages)\n\n"
         "The bot and the moderator must both outrank the target. Nobody can act on the owner or on themselves."),
+    "Extra mod tools": (
+        "`/unban user_id reason`: unban someone by ID (needs Ban Members)\n"
+        "`/clearwarnings user`: remove all of a user's warnings (needs Moderate Members)\n"
+        "`/slowmode seconds [channel]`: set slowmode, 0 turns it off (needs Manage Channels)\n"
+        "`/lock [channel]` / `/unlock [channel]`: stop or allow @everyone sending messages "
+        "(needs Manage Channels)\n"
+        "`/userinfo [member]`: account age, join date, roles and timeout status. Anyone can use it.\n\n"
+        "The bot needs the same permission as you for each command. Everything except `/userinfo` is logged."),
     "Auto-mod & anti-raid": (
         "**Auto-mod** (staff with Manage Messages are exempt)\n"
         "- 5 messages in 5 seconds: message deleted + 10 min timeout\n"
