@@ -77,6 +77,8 @@ PAGES: dict[str, str] = {
         "name and a color (hex like `#ff66aa`).\n\n"
         "**Members:** press a button on the panel, then fill in the pop-up form.\n"
         "- **Create Role** makes your role. **Change Role** renames or recolors it later.\n"
+        "- **Role Icon** puts an emoji or an image link next to your role (empty form removes it). "
+        "`/role icon` also takes an uploaded image (square, under 256 KB). Icons need Boost Level 2.\n"
         "- Only server boosters and members who have a selected role can use them. The panel lists the "
         "selected roles by name.\n"
         "`/role custom name [color]` does the same without the panel, and `/role remove` deletes the role.\n\n"

@@ -4,9 +4,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from greetings import read_attachment, read_image_url  # same image rules as /welcome
 from wordfilter import normalize  # so role names obey the word filter too
 
 MAX_NAME_LENGTH = 32
+ICON_MAX_BYTES = 256 * 1024  # Discord's limit for role icons
 HEX_RE = re.compile(r"^(?:#|0x)?([0-9a-fA-F]{6})$")
 
 
@@ -29,6 +31,21 @@ class RoleForm(discord.ui.Modal, title="Create your custom role"):
         await self.cog.apply(interaction, str(self.name.value), str(self.color.value).strip() or None)
 
 
+class IconForm(discord.ui.Modal, title="Role icon"):
+    """Pop-up for the Role Icon button. Leave both boxes empty to remove the icon."""
+
+    emoji = discord.ui.TextInput(label="Emoji (leave empty to remove the icon)", required=False, max_length=10)
+    url = discord.ui.TextInput(label="Or an image link", required=False, max_length=500,
+                               placeholder="Paste an image link, e.g. a Discord CDN link")
+
+    def __init__(self, cog: "CustomRoles"):
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.cog.set_icon(interaction, str(self.emoji.value), None, str(self.url.value).strip() or None)
+
+
 class RolePanel(discord.ui.View):
     """The two buttons under the panel message. Persistent: they keep working after the bot restarts."""
 
@@ -43,6 +60,10 @@ class RolePanel(discord.ui.View):
     @discord.ui.button(label="Change Role", style=discord.ButtonStyle.secondary, custom_id="role:change")
     async def change(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.cog.panel_click(interaction, "change")
+
+    @discord.ui.button(label="Role Icon", style=discord.ButtonStyle.secondary, custom_id="role:icon")
+    async def icon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.panel_click(interaction, "icon")
 
 
 class OldRolePanel(discord.ui.View):
@@ -273,8 +294,9 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             title="Create your custom role",
             description="Make your own role with a name and a color of your choice. It has no permissions, "
                         "it only shows next to your name.\n\n" + "\n".join(lines)
-                        + "\n\nPress **Create Role** to make your role, or **Change Role** to rename or "
-                          "recolor it later.",
+                        + "\n\nPress **Create Role** to make your role, **Change Role** to rename or "
+                          "recolor it, or **Role Icon** to add a small emoji or image next to it "
+                          "(the server needs Boost Level 2 for icons).",
             color=discord.Color(0xF47FFF))
 
     def who_can_text(self, guild: discord.Guild) -> str:
@@ -298,10 +320,74 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             return await interaction.response.send_message(
                 f"You already have a custom role: {own.mention}. Press **Change Role** to rename or recolor it.",
                 ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
-        if action == "change" and own is None:
+        if action in ("change", "icon") and own is None:
             return await interaction.response.send_message(
                 "You don't have a custom role yet. Press **Create Role** first.", ephemeral=True)
+        if action == "icon":
+            if "ROLE_ICONS" not in guild.features:
+                return await interaction.response.send_message(
+                    "Role icons need this server to reach Boost Level 2.", ephemeral=True)
+            return await interaction.response.send_modal(IconForm(self))
         await interaction.response.send_modal(RoleForm(self, own))
+
+    # ---------- role icon ----------
+
+    @app_commands.command(name="icon", description="Put an emoji or image next to your custom role (leave empty to remove)")
+    @app_commands.describe(emoji="An emoji to use as the icon", image="Or upload an image (square, under 256 KB)",
+                           image_url="Or paste an image link (a Discord CDN link works)")
+    @app_commands.guild_only()
+    async def icon_cmd(self, interaction: discord.Interaction, emoji: str | None = None,
+                       image: discord.Attachment | None = None, image_url: str | None = None):
+        await self.set_icon(interaction, emoji, image, image_url)
+
+    async def set_icon(self, interaction: discord.Interaction, emoji: str | None,
+                       image: discord.Attachment | None, url: str | None):
+        """Shared by /role icon and the Role Icon button. Nothing given at all means remove the icon."""
+        member, guild = interaction.user, interaction.guild
+        own_id = self.owned.get((guild.id, member.id))
+        own = guild.get_role(own_id) if own_id else None
+        if not self.eligible(member):
+            return await interaction.response.send_message(
+                "Custom roles are for server boosters and members with a selected role.", ephemeral=True)
+        if own is None:
+            return await interaction.response.send_message(
+                "You don't have a custom role yet. Create one first.", ephemeral=True)
+        if "ROLE_ICONS" not in guild.features:
+            return await interaction.response.send_message(
+                "Role icons need this server to reach Boost Level 2.", ephemeral=True)
+        if not guild.me.guild_permissions.manage_roles:
+            return await interaction.response.send_message(
+                "I need the Manage Roles permission to do that.", ephemeral=True)
+        emoji = (emoji or "").strip() or None
+        url = (url or "").strip() or None
+        if sum(bool(x) for x in (emoji, image, url)) > 1:
+            return await interaction.response.send_message(
+                "Use only one: an emoji, an image upload or an image link.", ephemeral=True)
+
+        await interaction.response.defer(ephemeral=True)
+        value = None  # None removes the icon
+        try:
+            if emoji:
+                if emoji.isascii():
+                    raise ValueError("That isn't an emoji. Paste a single emoji, or use an image instead.")
+                value = emoji
+            elif image is not None or url:
+                value, _ext = await read_attachment(image) if image is not None else await read_image_url(url)
+                if len(value) > ICON_MAX_BYTES:
+                    raise ValueError("That image is bigger than 256 KB. Use a smaller, square image.")
+        except ValueError as e:
+            return await interaction.followup.send(str(e), ephemeral=True)
+        try:
+            await own.edit(display_icon=value, reason=f"Role icon changed by {member}")
+        except discord.Forbidden:
+            return await interaction.followup.send(
+                "I don't have permission to edit that role. Ask an admin to move my role higher.", ephemeral=True)
+        except discord.HTTPException:
+            return await interaction.followup.send(
+                "Discord refused that icon. Use one emoji, or a square PNG or JPG that is at least 64x64 "
+                "and under 256 KB.", ephemeral=True)
+        await interaction.followup.send("Removed your role icon." if value is None else "Your role icon was updated.",
+                                        ephemeral=True)
 
     # ---------- /role remove ----------
 
