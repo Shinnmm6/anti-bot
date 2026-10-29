@@ -401,9 +401,6 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             return await interaction.response.send_message(
                 "You don't have a custom role yet. Press **Create Role** first.", ephemeral=True)
         if action == "icon":
-            if "ROLE_ICONS" not in guild.features:
-                return await interaction.response.send_message(
-                    "Role icons need this server to reach Boost Level 2.", ephemeral=True)
             return await interaction.response.send_modal(IconForm(self))
         if action == "change":
             return await interaction.response.send_message(
@@ -453,9 +450,6 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         if own is None:
             return await interaction.response.send_message(
                 "You don't have a custom role yet. Create one first.", ephemeral=True)
-        if "ROLE_ICONS" not in guild.features:
-            return await interaction.response.send_message(
-                "Role icons need this server to reach Boost Level 2.", ephemeral=True)
         if not guild.me.guild_permissions.manage_roles:
             return await interaction.response.send_message(
                 "I need the Manage Roles permission to do that.", ephemeral=True)
@@ -480,13 +474,19 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             return await interaction.followup.send(str(e), ephemeral=True)
         try:
             await own.edit(display_icon=value, reason=f"Role icon changed by {member}")
-        except discord.Forbidden:
+        except discord.Forbidden as e:
+            print(f"role icon forbidden in {guild.id}: status={e.status} code={e.code} text={e.text}")
             return await interaction.followup.send(
-                "I don't have permission to edit that role. Ask an admin to move my role higher.", ephemeral=True)
-        except discord.HTTPException:
+                f"Discord said I'm not allowed to edit that role ({e.text or 'no details'}). "
+                "Ask an admin to check that my role is above your custom role and has Manage Roles.", ephemeral=True)
+        except discord.HTTPException as e:
+            print(f"role icon failed in {guild.id}: status={e.status} code={e.code} text={e.text}")
+            hint = ""
+            if "ROLE_ICONS" not in guild.features and guild.premium_tier < 2:
+                hint = " This server doesn't look like it has role icons unlocked (Boost Level 2)."
             return await interaction.followup.send(
-                "Discord refused that icon. Use one emoji, or a square PNG or JPG that is at least 64x64 "
-                "and under 256 KB.", ephemeral=True)
+                f"Discord refused the icon: {e.text or 'no details'}.{hint} "
+                "For an image, use a square PNG or JPG, at least 64x64 and under 256 KB.", ephemeral=True)
         await interaction.followup.send("Removed your role icon." if value is None else "Your role icon was updated.",
                                         ephemeral=True)
 
