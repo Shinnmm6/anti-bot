@@ -1,6 +1,6 @@
 import random
 import time
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 
 import discord
 from discord import app_commands
@@ -70,12 +70,16 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
             await db.execute("ALTER TABLE surprise_config ADD COLUMN prize_text TEXT")
         except Exception:
             pass  # column already exists
+        try:
+            await db.execute("ALTER TABLE surprise_config ADD COLUMN log_channel_id INTEGER")
+        except Exception:
+            pass
         await db.commit()
         async with db.execute("SELECT guild_id, prize_role_id, win_chance, timeout_chance, cooldown_seconds, title, "
-                              "prize_text FROM surprise_config") as cur:
-            for gid, role_id, win, tmo, cooldown, title, text in await cur.fetchall():
+                              "prize_text, log_channel_id FROM surprise_config") as cur:
+            for gid, role_id, win, tmo, cooldown, title, text, logch in await cur.fetchall():
                 self.config[gid] = {"role_id": role_id, "win": win, "timeout": tmo, "cooldown": cooldown,
-                                    "title": title, "prize": text or "a role"}
+                                    "title": title, "prize": text or "a role", "log_channel": logch}
         self.bot.add_view(SurprisePanel(self))
 
     # ---------- setup ----------
@@ -88,7 +92,8 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
         win_chance="Chance to win the prize, in percent (default 5). Kept secret",
         timeout_chance="Chance of bad luck, a 1 to 3 minute timeout, in percent (default 25). Kept secret",
         cooldown_minutes="How long each member waits between tries (default 10)",
-        title="Name of the box (default Surprise Box)")
+        title="Name of the box (default Surprise Box)",
+        log_channel="Channel where every try is logged for staff (who got lucky or unlucky)")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(manage_roles=True)
@@ -97,7 +102,8 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
                         win_chance: app_commands.Range[float, 0.1, 50.0] = 5.0,
                         timeout_chance: app_commands.Range[float, 0.0, 80.0] = 25.0,
                         cooldown_minutes: app_commands.Range[int, 1, 1440] = 10,
-                        title: app_commands.Range[str, 1, 40] = "Surprise Box"):
+                        title: app_commands.Range[str, 1, 40] = "Surprise Box",
+                        log_channel: discord.TextChannel | None = None):
         guild = interaction.guild
         if role is not None and (role.is_default() or role.managed or role >= guild.me.top_role):
             return await interaction.response.send_message(
@@ -125,18 +131,41 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
         except discord.HTTPException:
             return await interaction.response.send_message("I couldn't post in that channel.", ephemeral=True)
 
-        cfg = {"role_id": role.id if role else None, "prize": prize, "win": win_chance, "timeout": timeout_chance,
+        old = self.config.get(guild.id) or {}
+        log_id = log_channel.id if log_channel else old.get("log_channel")  # keep the old one if not given
+        cfg = {"log_channel": log_id, "role_id": role.id if role else None, "prize": prize, "win": win_chance, "timeout": timeout_chance,
                "cooldown": cooldown_minutes * 60, "title": title}
         await self.bot.db.execute(
             "INSERT OR REPLACE INTO surprise_config (guild_id, prize_role_id, win_chance, timeout_chance, "
-            "cooldown_seconds, title, prize_text) VALUES (?,?,?,?,?,?,?)",
-            (guild.id, cfg["role_id"], cfg["win"], cfg["timeout"], cfg["cooldown"], cfg["title"], prize))
+            "cooldown_seconds, title, prize_text, log_channel_id) VALUES (?,?,?,?,?,?,?,?)",
+            (guild.id, cfg["role_id"], cfg["win"], cfg["timeout"], cfg["cooldown"], cfg["title"], prize, log_id))
         await self.bot.db.commit()
         self.config[guild.id] = cfg
         await interaction.response.send_message(f"The {title} is posted in {channel.mention}.{warning}", ephemeral=True)
         await self.bot.log(guild, "Surprise box set up",
                            f"Prize {prize}{' + ' + role.mention if role else ''}, win {win_chance:g}%, bad luck {timeout_chance:g}%, "
                            f"cooldown {cooldown_minutes}m, by {interaction.user}", discord.Color.green())
+
+    @app_commands.command(name="logchannel", description="Choose the channel where every box try is logged")
+    @app_commands.describe(channel="Where to send the logs (leave empty to stop)")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def logchannel(self, interaction: discord.Interaction, channel: discord.TextChannel | None = None):
+        cfg = self.config.get(interaction.guild_id)
+        if not cfg:
+            return await interaction.response.send_message("The Surprise Box isn't set up. Use `/surprise setup`.",
+                                                           ephemeral=True)
+        if channel:
+            perms = channel.permissions_for(interaction.guild.me)
+            if not (perms.view_channel and perms.send_messages and perms.embed_links):
+                return await interaction.response.send_message(
+                    f"I need View Channel, Send Messages and Embed Links in {channel.mention}.", ephemeral=True)
+        cfg["log_channel"] = channel.id if channel else None
+        await self.bot.db.execute("UPDATE surprise_config SET log_channel_id=? WHERE guild_id=?",
+                                  (cfg["log_channel"], interaction.guild_id))
+        await self.bot.db.commit()
+        await interaction.response.send_message(
+            f"Every try will be logged in {channel.mention}." if channel else "Box logs are off.", ephemeral=True)
 
     @app_commands.command(name="off", description="Turn the Surprise Box off (old panels stop working)")
     @app_commands.guild_only()
@@ -162,7 +191,7 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
             tries, wins, timeouts = await cur.fetchone()
         await interaction.response.send_message(
             f"**{cfg['title']}**\nPrize: {cfg['prize']}{' + <@&%d>' % cfg['role_id'] if cfg['role_id'] else ''} ({cfg['win']:g}%)\nBad luck: {cfg['timeout']:g}%\n"
-            f"Cooldown: {cfg['cooldown'] // 60} min\nTries so far: **{tries}**, prizes won: **{wins}**, "
+            f"Cooldown: {cfg['cooldown'] // 60} min\nLog channel: {('<#%d>' % cfg['log_channel']) if cfg.get('log_channel') else 'none'}\nTries so far: **{tries}**, prizes won: **{wins}**, "
             f"timeouts given: **{timeouts}**", ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
     # ---------- who got lucky or unlucky ----------
@@ -176,6 +205,27 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
             "DELETE FROM surprise_log WHERE guild_id=? AND id <= "
             "(SELECT id FROM surprise_log WHERE guild_id=? ORDER BY id DESC LIMIT 1 OFFSET 5000)", (guild_id, guild_id))
         await self.bot.db.commit()
+        await self.announce(guild_id, user_id, outcome, minutes)
+
+    async def announce(self, guild_id: int, user_id: int, outcome: str, minutes: int):
+        cfg = self.config.get(guild_id) or {}
+        guild = self.bot.get_guild(guild_id)
+        channel = guild.get_channel(cfg["log_channel"]) if guild and cfg.get("log_channel") else None
+        if channel is None:
+            return
+        lucky = outcome in LUCKY
+        label = OUTCOME_LABELS.get(outcome, outcome).format(m=minutes)
+        if outcome == "win":
+            label += f" ({cfg.get('prize', 'prize')})"
+        embed = discord.Embed(title="Lucky" if lucky else "Unlucky" if outcome in UNLUCKY_OUTCOMES else "Nothing",
+                              description=f"<@{user_id}> ({user_id})\n{label}",
+                              color=discord.Color.gold() if lucky else discord.Color.red()
+                              if outcome in UNLUCKY_OUTCOMES else discord.Color.light_grey(),
+                              timestamp=datetime.now(timezone.utc))
+        try:
+            await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            pass
 
     @app_commands.command(name="logs", description="See who got lucky or unlucky in the box (only you see it)")
     @app_commands.describe(member="Only show this member", show="What to show (default: everything)")

@@ -133,7 +133,7 @@ PAGES: dict[str, str] = {
         "- `win_chance` (default 5%) and `timeout_chance` (default 25%): the secret odds. Bad luck is a timeout "
         "of 1, 2 or 3 minutes.\n"
         "- `cooldown_minutes` (default 10): how long each member waits between tries\n"
-        "`/surprise status` shows the settings and totals. `/surprise off` closes the box.\n"
+        "`/surprise logchannel [channel]` sends every try (who got lucky or unlucky) to a staff channel. `/surprise status` shows the settings and totals. `/surprise off` closes the box.\n"
         "`/surprise logs [member] [show]` shows who got lucky or unlucky, newest first (only you see it).\n\n"
         "Everyone who doesn't win, whether nothing happened or they got timed out, only sees "
         "\"Better luck next time, you got unlucky today.\" A win is told privately and announced in the channel "
