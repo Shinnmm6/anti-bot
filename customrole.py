@@ -1,3 +1,5 @@
+import asyncio
+import io
 import re
 
 import discord
@@ -7,8 +9,34 @@ from discord.ext import commands
 from greetings import read_attachment, read_image_url  # same image rules as /welcome
 from wordfilter import normalize  # so role names obey the word filter too
 
+try:
+    from PIL import Image, ImageOps
+    Image.MAX_IMAGE_PIXELS = 25_000_000  # refuse huge images instead of eating all the memory
+except ImportError:  # Pillow missing: icons are then sent exactly as uploaded
+    Image = ImageOps = None
+
 MAX_NAME_LENGTH = 32
-ICON_MAX_BYTES = 256 * 1024  # Discord's limit for role icons
+ICON_SIZE = 128  # role icons are shown tiny, so a 128x128 PNG is plenty and far below Discord's 256 KB limit
+
+
+def to_icon_png(raw: bytes) -> bytes:
+    """Turn any picture (PNG, JPG, GIF, WebP, any shape or size) into the square PNG Discord accepts."""
+    if Image is None:
+        return raw
+    try:
+        with Image.open(io.BytesIO(raw)) as img:
+            if img.width * img.height > Image.MAX_IMAGE_PIXELS:  # Pillow itself only refuses at double this
+                raise ValueError("too many pixels")
+            img.seek(0)  # animated GIF/WebP: use the first frame
+            img = ImageOps.exif_transpose(img).convert("RGBA")
+            side = min(img.size)  # crop the middle square so nothing gets stretched
+            left, top = (img.width - side) // 2, (img.height - side) // 2
+            img = img.crop((left, top, left + side, top + side)).resize((ICON_SIZE, ICON_SIZE), Image.LANCZOS)
+            out = io.BytesIO()
+            img.save(out, format="PNG", optimize=True)
+            return out.getvalue()
+    except Exception:
+        raise ValueError("I couldn't read that image. Try a normal PNG or JPG.")
 HEX_RE = re.compile(r"^(?:#|0x)?([0-9a-fA-F]{6})$")
 
 # Ready-made colors, so nobody has to know a hex code. Discord lists at most 25 options in a dropdown.
@@ -431,7 +459,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     # ---------- role icon ----------
 
     @app_commands.command(name="icon", description="Put an emoji or image next to your custom role (leave empty to remove)")
-    @app_commands.describe(emoji="An emoji to use as the icon", image="Or upload an image (square, under 256 KB)",
+    @app_commands.describe(emoji="An emoji to use as the icon", image="Or upload an image (any picture works)",
                            image_url="Or paste an image link (a Discord CDN link works)")
     @app_commands.guild_only()
     async def icon_cmd(self, interaction: discord.Interaction, emoji: str | None = None,
@@ -467,9 +495,8 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
                     raise ValueError("That isn't an emoji. Paste a single emoji, or use an image instead.")
                 value = emoji
             elif image is not None or url:
-                value, _ext = await read_attachment(image) if image is not None else await read_image_url(url)
-                if len(value) > ICON_MAX_BYTES:
-                    raise ValueError("That image is bigger than 256 KB. Use a smaller, square image.")
+                raw, _ext = await read_attachment(image) if image is not None else await read_image_url(url)
+                value = await asyncio.to_thread(to_icon_png, raw)  # square 128x128 PNG, whatever was sent
         except ValueError as e:
             return await interaction.followup.send(str(e), ephemeral=True)
         try:
@@ -486,7 +513,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
                 hint = " This server doesn't look like it has role icons unlocked (Boost Level 2)."
             return await interaction.followup.send(
                 f"Discord refused the icon: {e.text or 'no details'}.{hint} "
-                "For an image, use a square PNG or JPG, at least 64x64 and under 256 KB.", ephemeral=True)
+                "If you used an image, try a different one, or use an emoji instead.", ephemeral=True)
         await interaction.followup.send("Removed your role icon." if value is None else "Your role icon was updated.",
                                         ephemeral=True)
 
