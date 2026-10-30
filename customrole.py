@@ -816,7 +816,7 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         await interaction.response.send_message(
             f"{member.mention} is now in your crew and has {own.mention} ({len(crew) + 1}/{limit}). "
             "If you lose your custom role, they lose it too.",
-            allowed_mentions=discord.AllowedMentions(users=[member]))
+            allowed_mentions=discord.AllowedMentions(users=[member]), delete_after=10)  # tidy up after 10 seconds
 
     @app_commands.command(name="unshare", description="Take your custom role back from a friend")
     @app_commands.guild_only()
