@@ -122,6 +122,15 @@ PAGES: dict[str, str] = {
         "Staff (Manage Server): `/confess setup panel_channel confession_channel` posts the button in one channel "
         "and sends confessions to the other. `/confess off`, `/confess reveal number` (logged), "
         "`/confess delete number`."),
+    "Mrbeastpot": (
+        "A trap channel that catches spam bots (like the fake giveaway and casino scams). Spam bots post in "
+        "every channel they can see, real members never need this one.\n\n"
+        "`/mrbeastpot setup channel [action]` (needs Manage Server) posts the warning message. The action is "
+        "**softban** (default: ban, wipe their last 7 days of messages, then unban), **ban**, or **kick**.\n"
+        "`/mrbeastpot status` shows the channel and how many were caught. `/mrbeastpot off` removes the trap.\n\n"
+        "The message shows a live **Bans** counter. Everything caught is also sent to your log channel with what "
+        "they posted. Staff, the owner and anyone above the bot are never touched. The bot needs Ban Members, "
+        "Kick Members and Manage Messages, and the channel must be visible to @everyone."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"

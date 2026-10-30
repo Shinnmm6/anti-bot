@@ -39,6 +39,7 @@ FILE_COMMANDS = {
     "customrole": "/role",
     "community": "/profile /confess /capsule /kudos /daily",
     "surprise": "/surprise",
+    "mrbeastpot": "/mrbeastpot",
     "verification": "/verify",
 }
 
