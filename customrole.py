@@ -160,6 +160,42 @@ class RolePanel(discord.ui.View):
     async def icon(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.cog.panel_click(interaction, "icon")
 
+    @discord.ui.button(label="Share Role", style=discord.ButtonStyle.secondary, custom_id="role:share")
+    async def share(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.panel_click(interaction, "share")
+
+    @discord.ui.button(label="Gallery", style=discord.ButtonStyle.success, custom_id="role:gallery")
+    async def gallery(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.open_gallery(interaction)  # open to everyone, not only boosters
+
+
+class CrewMenu(discord.ui.View):
+    """Opened by the Share Role button: pick a friend to give your role to, or to take it back from."""
+
+    def __init__(self, cog: "CustomRoles"):
+        super().__init__(timeout=180)
+        self.cog = cog
+
+    async def friend(self, interaction: discord.Interaction, picked) -> discord.Member | None:
+        member = interaction.guild.get_member(picked.id)
+        if member is None:
+            await interaction.response.send_message("I can't find that member in this server.", ephemeral=True)
+        return member
+
+    @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Pick a friend to share your role with",
+                       min_values=1, max_values=1)
+    async def add_friend(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        member = await self.friend(interaction, select.values[0])
+        if member is not None:
+            await self.cog.do_share(interaction, member)
+
+    @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Pick a friend to take your role back from",
+                       min_values=1, max_values=1)
+    async def remove_friend(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        member = await self.friend(interaction, select.values[0])
+        if member is not None:
+            await self.cog.do_unshare(interaction, member)
+
 
 class OldRolePanel(discord.ui.View):
     """Keeps panels posted before the buttons were renamed from failing; they just ask for a new panel."""
@@ -490,7 +526,9 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
                         "it only shows next to your name.\n\n" + "\n".join(lines)
                         + "\n\nPress **Create Role** to make your role, then pick its color from a list. "
                           "Press **Change Role** to pick a new color or rename it, or **Role Icon** to add a "
-                          "small emoji or image next to it (the server needs Boost Level 2 for icons).",
+                          "small emoji or image next to it (the server needs Boost Level 2 for icons). "
+                          "**Share Role** gives your role to a few friends, and **Gallery** lets anyone browse "
+                          "all custom roles and like their favorites.",
             color=discord.Color(0xF47FFF))
 
     def who_can_text(self, guild: discord.Guild) -> str:
@@ -514,9 +552,19 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             return await interaction.response.send_message(
                 f"You already have a custom role: {own.mention}. Press **Change Role** to rename or recolor it.",
                 ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
-        if action in ("change", "icon") and own is None:
+        if action in ("change", "icon", "share") and own is None:
             return await interaction.response.send_message(
                 "You don't have a custom role yet. Press **Create Role** first.", ephemeral=True)
+        if action == "share":
+            crew, limit = await self.crew_ids(guild.id, member.id), self.cfg(guild.id)["crew_max"]
+            if limit <= 0:
+                return await interaction.response.send_message("Sharing roles is turned off on this server.",
+                                                               ephemeral=True)
+            names = ", ".join(f"<@{m}>" for m in crew) or "nobody yet"
+            return await interaction.response.send_message(
+                f"Your crew ({len(crew)}/{limit}): {names}\nUse the top menu to give your role to a friend, "
+                "or the bottom menu to take it back from someone.", view=CrewMenu(self), ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none())
         if action == "icon":
             return await interaction.response.send_modal(IconForm(self))
         if action == "change":
@@ -733,7 +781,14 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(manage_roles=True)
     async def share(self, interaction: discord.Interaction, member: discord.Member):
+        await self.do_share(interaction, member)
+
+    async def do_share(self, interaction: discord.Interaction, member: discord.Member):
+        """Shared by /role share and the friend picker on the panel."""
         guild, owner = interaction.guild, interaction.user
+        if not guild.me.guild_permissions.manage_roles:
+            return await interaction.response.send_message("I need the Manage Roles permission to do that.",
+                                                           ephemeral=True)
         own = self.own_role(guild, owner.id)
         limit = self.cfg(guild.id)["crew_max"]
         if own is None or not self.eligible(owner):
@@ -767,6 +822,10 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(manage_roles=True)
     async def unshare(self, interaction: discord.Interaction, member: discord.Member):
+        await self.do_unshare(interaction, member)
+
+    async def do_unshare(self, interaction: discord.Interaction, member: discord.Member):
+        """Shared by /role unshare and the friend picker on the panel."""
         cur = await self.bot.db.execute("DELETE FROM role_crew WHERE guild_id=? AND owner_id=? AND member_id=?",
                                         (interaction.guild_id, interaction.user.id, member.id))
         await self.bot.db.commit()
@@ -871,6 +930,10 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     @app_commands.command(name="gallery", description="Browse everyone's custom roles and like your favorites")
     @app_commands.guild_only()
     async def gallery(self, interaction: discord.Interaction):
+        await self.open_gallery(interaction)
+
+    async def open_gallery(self, interaction: discord.Interaction):
+        """Shared by /role gallery and the Gallery button. Anyone can open it."""
         view = GalleryView(self, interaction.guild, interaction.user)
         embed = await view.refresh()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True,
