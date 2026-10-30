@@ -78,6 +78,36 @@ class Profile(commands.Cog):
 # /confess: anonymous to members, but staff can trace a confession if a rule is broken
 # =====================================================================================================
 
+class ConfessForm(discord.ui.Modal, title="Anonymous confession"):
+    """The pop-up opened by the Confess button."""
+
+    text = discord.ui.TextInput(label="Your confession", style=discord.TextStyle.paragraph, min_length=1,
+                                max_length=1500, placeholder="Write it here. No links, no pinging people.")
+
+    def __init__(self, cog: "Confess"):
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.cog.do_send(interaction, str(self.text.value))
+
+
+class ConfessPanel(discord.ui.View):
+    """The panel's Confess button. Persistent: it keeps working after the bot restarts."""
+
+    def __init__(self, cog: "Confess"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Confess", style=discord.ButtonStyle.primary, custom_id="confess:open")
+    async def open(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.guild.get_channel(self.cog.channels.get(interaction.guild_id, 0)) is None:
+            return await interaction.response.send_message(
+                "Confessions aren't set up properly. Ask a staff member to run `/confess setup` again.",
+                ephemeral=True)
+        await interaction.response.send_modal(ConfessForm(self.cog))
+
+
 class Confess(commands.GroupCog, group_name="confess", group_description="Anonymous confessions"):
     COOLDOWN = 60
     MAX_LENGTH = 1500
@@ -98,23 +128,39 @@ class Confess(commands.GroupCog, group_name="confess", group_description="Anonym
         async with db.execute("SELECT guild_id, channel_id FROM confess_config") as cur:
             for guild_id, channel_id in await cur.fetchall():
                 self.channels[guild_id] = channel_id
+        self.bot.add_view(ConfessPanel(self))
 
-    @app_commands.command(name="setup", description="Choose the channel where anonymous confessions are posted")
+    @app_commands.command(name="setup", description="Post the Confess button and choose where confessions are sent")
+    @app_commands.describe(panel_channel="Where the Confess button is posted",
+                           confession_channel="Where the anonymous confessions are sent")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def setup_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        perms = channel.permissions_for(interaction.guild.me)
-        if not (perms.view_channel and perms.send_messages and perms.embed_links):
-            return await interaction.response.send_message(
-                f"I need View Channel, Send Messages and Embed Links in {channel.mention}.", ephemeral=True)
+    async def setup_cmd(self, interaction: discord.Interaction, panel_channel: discord.TextChannel,
+                        confession_channel: discord.TextChannel):
+        me = interaction.guild.me
+        for ch in (panel_channel, confession_channel):
+            perms = ch.permissions_for(me)
+            if not (perms.view_channel and perms.send_messages and perms.embed_links):
+                return await interaction.response.send_message(
+                    f"I need View Channel, Send Messages and Embed Links in {ch.mention}.", ephemeral=True)
+        embed = discord.Embed(
+            title="Anonymous confessions",
+            description=("Press **Confess**, write what you want to say, and the bot posts it anonymously in "
+                         f"{confession_channel.mention}.\n\n"
+                         "No links, no filtered words, and one confession a minute. Other members can't see who "
+                         "wrote it, but staff can look it up if a rule is broken."),
+            color=discord.Color.dark_purple())
+        try:
+            await panel_channel.send(embed=embed, view=ConfessPanel(self))
+        except discord.HTTPException:
+            return await interaction.response.send_message("I couldn't post in the panel channel.", ephemeral=True)
         await self.bot.db.execute("INSERT OR REPLACE INTO confess_config (guild_id, channel_id) VALUES (?,?)",
-                                  (interaction.guild_id, channel.id))
+                                  (interaction.guild_id, confession_channel.id))
         await self.bot.db.commit()
-        self.channels[interaction.guild_id] = channel.id
+        self.channels[interaction.guild_id] = confession_channel.id
         await interaction.response.send_message(
-            f"Confessions will be posted in {channel.mention}. Members stay anonymous to each other, but staff can "
-            "look up the sender of a confession with `/confess reveal`. Members are told this when they confess.",
-            ephemeral=True)
+            f"The Confess button is in {panel_channel.mention}. Confessions will be sent to "
+            f"{confession_channel.mention}.", ephemeral=True)
 
     @app_commands.command(name="off", description="Turn confessions off")
     @app_commands.guild_only()
@@ -129,6 +175,10 @@ class Confess(commands.GroupCog, group_name="confess", group_description="Anonym
     @app_commands.describe(message="What you want to say (no links, and no pinging people)")
     @app_commands.guild_only()
     async def send(self, interaction: discord.Interaction, message: str):
+        await self.do_send(interaction, message)
+
+    async def do_send(self, interaction: discord.Interaction, message: str):
+        """Shared by /confess send and the Confess button's pop-up form."""
         guild = interaction.guild
         channel = guild.get_channel(self.channels.get(guild.id, 0))
         if channel is None:

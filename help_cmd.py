@@ -116,9 +116,11 @@ PAGES: dict[str, str] = {
         "this week's or all time's most thanked members.\n\n"
         "**/capsule write message when**: seal a message that the bot posts in that channel later, like `30d` "
         "or `12w` (1 minute to 1 year, 5 waiting at a time). `/capsule list` and `/capsule cancel id`.\n\n"
-        "**/confess send message**: an anonymous confession. Members can't see who wrote it, but staff can look "
-        "it up and members are told so. No links or filtered words, one a minute.\n"
-        "Staff (Manage Server): `/confess setup channel`, `/confess off`, `/confess reveal number` (logged), "
+        "**Confess button**: members press **Confess**, type in the pop-up, and the bot posts it anonymously. "
+        "`/confess send message` does the same. Members can't see who wrote it, but staff can look it up and "
+        "members are told so. No links or filtered words, one a minute.\n"
+        "Staff (Manage Server): `/confess setup panel_channel confession_channel` posts the button in one channel "
+        "and sends confessions to the other. `/confess off`, `/confess reveal number` (logged), "
         "`/confess delete number`."),
     "Giveaways": (
         "`/giveaway start prize duration [winners] [channel] [required_role]`: duration like `30m`, `2h`, `1d12h`\n"
