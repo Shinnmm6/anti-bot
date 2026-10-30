@@ -38,6 +38,22 @@ def to_icon_png(raw: bytes) -> bytes:
     except Exception:
         raise ValueError("I couldn't read that image. Try a normal PNG or JPG.")
 HEX_RE = re.compile(r"^(?:#|0x)?([0-9a-fA-F]{6})$")
+CUSTOM_EMOJI_RE = re.compile(r"^<a?:\w{2,32}:(\d{17,20})>$")  # what Discord pastes for a custom emoji
+EMOJI_NAME_RE = re.compile(r"^:(\w{2,32}):$")                  # :name: of one of THIS server's emojis
+
+
+def custom_emoji_id(text: str, guild_emojis=()) -> int | None:
+    """The id of a custom emoji given as <:name:id>, <a:name:id>, or :name: (a name from this server)."""
+    m = CUSTOM_EMOJI_RE.match(text)
+    if m:
+        return int(m.group(1))
+    m = EMOJI_NAME_RE.match(text)
+    if m:
+        for e in guild_emojis:
+            if e.name.lower() == m.group(1).lower():
+                return e.id
+    return None
+
 
 # Ready-made colors, so nobody has to know a hex code. Discord lists at most 25 options in a dropdown.
 COLORS = {
@@ -111,7 +127,8 @@ class ColorMenu(discord.ui.View):
 class IconForm(discord.ui.Modal, title="Role icon"):
     """Pop-up for the Role Icon button. Leave both boxes empty to remove the icon."""
 
-    emoji = discord.ui.TextInput(label="Emoji (leave empty to remove the icon)", required=False, max_length=10)
+    emoji = discord.ui.TextInput(label="Emoji (leave empty to remove the icon)", required=False, max_length=64,
+                                 placeholder="A normal emoji, or a custom emoji from any server")
     url = discord.ui.TextInput(label="Or an image link", required=False, max_length=500,
                                placeholder="Paste an image link, e.g. a Discord CDN link")
 
@@ -459,7 +476,8 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     # ---------- role icon ----------
 
     @app_commands.command(name="icon", description="Put an emoji or image next to your custom role (leave empty to remove)")
-    @app_commands.describe(emoji="An emoji to use as the icon", image="Or upload an image (any picture works)",
+    @app_commands.describe(emoji="An emoji to use as the icon (normal, or a custom emoji from any server)",
+                           image="Or upload an image (any picture works)",
                            image_url="Or paste an image link (a Discord CDN link works)")
     @app_commands.guild_only()
     async def icon_cmd(self, interaction: discord.Interaction, emoji: str | None = None,
@@ -491,9 +509,19 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         value = None  # None removes the icon
         try:
             if emoji:
-                if emoji.isascii():
-                    raise ValueError("That isn't an emoji. Paste a single emoji, or use an image instead.")
-                value = emoji
+                emoji_id = custom_emoji_id(emoji, guild.emojis)
+                if emoji_id:
+                    # Discord only allows normal emoji as an icon, so use the custom emoji's picture instead
+                    try:
+                        raw, _ext = await read_image_url(f"https://cdn.discordapp.com/emojis/{emoji_id}.png?size=128")
+                    except ValueError:
+                        raise ValueError("I couldn't load that custom emoji. It may have been deleted.")
+                    value = await asyncio.to_thread(to_icon_png, raw)
+                elif emoji.isascii():
+                    raise ValueError("That isn't an emoji. Paste a single emoji (normal or custom), "
+                                     "or use an image instead.")
+                else:
+                    value = emoji
             elif image is not None or url:
                 raw, _ext = await read_attachment(image) if image is not None else await read_image_url(url)
                 value = await asyncio.to_thread(to_icon_png, raw)  # square 128x128 PNG, whatever was sent

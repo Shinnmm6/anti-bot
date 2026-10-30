@@ -80,6 +80,8 @@ PAGES: dict[str, str] = {
         "(Red, Pink, Sky Blue, Purple and more). **Change Role** lets you pick a new color or rename it. "
         "You can also type a color name or a hex code like `#ff66aa`.\n"
         "- **Role Icon** puts an emoji or an image link next to your role (empty form removes it). "
+        "The emoji can be a normal one or a custom emoji from any server (pick it with Discord's emoji button "
+        "in the box, or type `:name:` for one from this server). "
         "`/role icon` also takes an uploaded image. Any picture works: the bot crops it to a square and "
         "resizes it. Icons need Boost Level 2.\n"
         "- Only server boosters and members who have a selected role can use them. The panel lists the "
