@@ -123,17 +123,20 @@ PAGES: dict[str, str] = {
         "and sends confessions to the other. `/confess off`, `/confess reveal number` (logged), "
         "`/confess delete number`."),
     "Surprise box": (
-        "A button with a rare prize and some bad luck. Members press **Open the box** and get one of three results: "
-        "the **prize role** (a small chance), **bad luck** (a timeout of 1, 2 or 3 minutes), or nothing.\n\n"
-        "`/surprise setup channel prize_role [win_chance] [timeout_chance] [cooldown_minutes] [title]` "
+        "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
+        "never say what the prize is or what the bad luck is.\n\n"
+        "`/surprise setup channel prize [win_chance] [timeout_chance] [cooldown_minutes] [title]` "
         "(needs Manage Server)\n"
-        "- `prize_role`: the best reward, for example a Gold role. Use a role you also allowed with `/role allow` "
+        "- `prize`: the role a lucky member wins, for example Gold. Use a role you also allowed with `/role allow` "
         "if you want the winner to be able to make a custom role.\n"
-        "- `win_chance` (default 5%) and `timeout_chance` (default 25%): the odds, shown on the panel\n"
+        "- `win_chance` (default 5%) and `timeout_chance` (default 25%): the secret odds. Bad luck is a timeout "
+        "of 1, 2 or 3 minutes.\n"
         "- `cooldown_minutes` (default 10): how long each member waits between tries\n"
         "`/surprise status` shows the settings and totals. `/surprise off` closes the box.\n\n"
-        "Wins are announced in the channel. Timeouts use the Moderate Members permission, and staff and "
-        "members above the bot are immune. The prize role must be below the bot's highest role."),
+        "Everyone who doesn't win, whether nothing happened or they got timed out, only sees "
+        "\"Better luck next time, you got unlucky today.\" A win is told privately and announced in the channel "
+        "without naming the prize. Timeouts use the Moderate Members permission, and staff and members above "
+        "the bot are immune. The prize role must be below the bot's highest role."),
     "Giveaways": (
         "`/giveaway start prize duration [winners] [channel] [required_role]`: duration like `30m`, `2h`, `1d12h`\n"
         "Members press **Enter** (press again to leave). The button shows the live entry count.\n"

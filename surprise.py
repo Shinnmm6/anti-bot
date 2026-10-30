@@ -1,6 +1,6 @@
 import random
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import discord
 from discord import app_commands
@@ -8,13 +8,7 @@ from discord.ext import commands
 
 TIMEOUT_MINUTES = (1, 2, 3)
 TIMEOUT_WEIGHTS = (50, 30, 20)  # 1 minute is the most common, 3 minutes the rarest
-NOTHING_LINES = (
-    "The box was empty. Better luck next time.",
-    "Just a bit of dust inside. Try again later.",
-    "You shook the box and heard nothing. Maybe next time.",
-    "A tiny confetti popped out, and that was it.",
-    "Not this time. The box wasn't ready to give anything away.",
-)
+UNLUCKY = "Better luck next time, you got unlucky today."  # the same words for nothing AND for bad luck
 
 
 def roll(win_chance: float, timeout_chance: float, rng=random) -> tuple[str, int]:
@@ -67,21 +61,21 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
     @app_commands.command(name="setup", description="Post a Surprise Box panel with a rare prize and some bad luck")
     @app_commands.describe(
         channel="Where to post the box",
-        prize_role="The best prize: the role a lucky member wins (for example Gold)",
-        win_chance="Chance to win the prize, in percent (default 5)",
-        timeout_chance="Chance of bad luck, a 1 to 3 minute timeout, in percent (default 25)",
+        prize="The prize a lucky member wins (a role, for example Gold)",
+        win_chance="Chance to win the prize, in percent (default 5). Kept secret",
+        timeout_chance="Chance of bad luck, a 1 to 3 minute timeout, in percent (default 25). Kept secret",
         cooldown_minutes="How long each member waits between tries (default 10)",
         title="Name of the box (default Surprise Box)")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.checks.bot_has_permissions(manage_roles=True)
-    async def setup_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel, prize_role: discord.Role,
+    async def setup_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel, prize: discord.Role,
                         win_chance: app_commands.Range[float, 0.1, 50.0] = 5.0,
                         timeout_chance: app_commands.Range[float, 0.0, 80.0] = 25.0,
                         cooldown_minutes: app_commands.Range[int, 1, 1440] = 10,
                         title: app_commands.Range[str, 1, 40] = "Surprise Box"):
         guild = interaction.guild
-        if prize_role.is_default() or prize_role.managed or prize_role >= guild.me.top_role:
+        if prize.is_default() or prize.managed or prize >= guild.me.top_role:
             return await interaction.response.send_message(
                 "I can't hand out that role. Pick a normal role that is below my highest role.", ephemeral=True)
         if win_chance + timeout_chance > 100:
@@ -96,21 +90,17 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
             warning = ("\n**Warning:** I don't have the Moderate Members permission, so I can't give the timeouts. "
                        "Bad luck will just do nothing until you give it to me.")
 
-        bad_text = (f"**Bad luck ({timeout_chance:g}%)**: a timeout of 1, 2 or 3 minutes.\n" if timeout_chance > 0 else "")
         embed = discord.Embed(
             title=title,
-            description=(f"Open the box for a chance to win {prize_role.mention}!\n\n"
-                         f"**Prize ({win_chance:g}%)**: {prize_role.mention}\n{bad_text}"
-                         f"Otherwise nothing happens.\n\n"
-                         f"You can try once every {cooldown_minutes} minute{'s' if cooldown_minutes != 1 else ''}. "
-                         "By pressing the button you accept the bad luck."),
-            color=prize_role.colour if prize_role.colour.value else discord.Color.gold())
+            description=("Feeling lucky? Press the button and see what the box has for you. Anything can happen.\n\n"
+                         f"You can try once every {cooldown_minutes} minute{'s' if cooldown_minutes != 1 else ''}."),
+            color=discord.Color.gold())  # not the prize role's color, which would give it away
         try:
             await channel.send(embed=embed, view=SurprisePanel(self), allowed_mentions=discord.AllowedMentions.none())
         except discord.HTTPException:
             return await interaction.response.send_message("I couldn't post in that channel.", ephemeral=True)
 
-        cfg = {"role_id": prize_role.id, "win": win_chance, "timeout": timeout_chance,
+        cfg = {"role_id": prize.id, "win": win_chance, "timeout": timeout_chance,
                "cooldown": cooldown_minutes * 60, "title": title}
         await self.bot.db.execute(
             "INSERT OR REPLACE INTO surprise_config (guild_id, prize_role_id, win_chance, timeout_chance, "
@@ -120,7 +110,7 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
         self.config[guild.id] = cfg
         await interaction.response.send_message(f"The {title} is posted in {channel.mention}.{warning}", ephemeral=True)
         await self.bot.log(guild, "Surprise box set up",
-                           f"Prize {prize_role.mention}, win {win_chance:g}%, bad luck {timeout_chance:g}%, "
+                           f"Prize {prize.mention}, win {win_chance:g}%, bad luck {timeout_chance:g}%, "
                            f"cooldown {cooldown_minutes}m, by {interaction.user}", discord.Color.green())
 
     @app_commands.command(name="off", description="Turn the Surprise Box off (old panels stop working)")
@@ -205,7 +195,7 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
                                                     allowed_mentions=discord.AllowedMentions.none())
             try:  # everyone gets to see a win
                 await interaction.channel.send(
-                    f"{member.mention} opened the {cfg['title']} and won {role.mention}!",
+                    f"{member.mention} opened the {cfg['title']} and got lucky!",
                     allowed_mentions=discord.AllowedMentions(users=[member]))
             except discord.HTTPException:
                 pass
@@ -213,23 +203,18 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
 
         if outcome == "timeout":
             if member.guild_permissions.administrator or member.id == guild.owner_id:
-                return await interaction.followup.send(
-                    f"Bad luck! You would have been timed out for {minutes} minute{'s' if minutes != 1 else ''}, "
-                    "but staff are immune.", ephemeral=True)
+                return await interaction.followup.send(UNLUCKY, ephemeral=True)  # staff are immune, say nothing more
             try:
                 await member.timeout(timedelta(minutes=minutes), reason="Bad luck in the surprise box")
             except discord.HTTPException:
-                return await interaction.followup.send(
-                    f"Bad luck! You would have been timed out for {minutes} minute{'s' if minutes != 1 else ''}, "
-                    "but I can't time you out, so you're safe.", ephemeral=True)
+                return await interaction.followup.send(UNLUCKY, ephemeral=True)  # I can't time them out
             await self.bot.db.execute("UPDATE surprise_tries SET timeouts=timeouts+1 WHERE guild_id=? AND user_id=?",
                                       (guild.id, member.id))
             await self.bot.db.commit()
-            await interaction.followup.send(
-                f"Bad luck! You are timed out for **{minutes} minute{'s' if minutes != 1 else ''}**.", ephemeral=True)
+            await interaction.followup.send(UNLUCKY, ephemeral=True)
             return await self.bot.log(guild, "Surprise box bad luck", f"{member} timed out for {minutes}m")
 
-        await interaction.followup.send(random.choice(NOTHING_LINES), ephemeral=True)
+        await interaction.followup.send(UNLUCKY, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
