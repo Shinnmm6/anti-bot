@@ -11,6 +11,19 @@ TIMEOUT_WEIGHTS = (50, 30, 20)  # 1 minute is the most common, 3 minutes the rar
 UNLUCKY = "Better luck next time, you got unlucky today."  # the same words for nothing AND for bad luck
 
 
+# how each recorded outcome is shown to staff in /surprise logs
+OUTCOME_LABELS = {
+    "win": "got lucky: won the prize",
+    "win_dup": "got lucky, but already had the prize role",
+    "win_failed": "got lucky, but I couldn't give the role",
+    "timeout": "unlucky: timed out for {m} min",
+    "timeout_skipped": "unlucky: {m} min timeout skipped (staff or above me)",
+    "nothing": "nothing happened",
+}
+LUCKY = ("win", "win_dup", "win_failed")
+UNLUCKY_OUTCOMES = ("timeout", "timeout_skipped")
+
+
 def roll(win_chance: float, timeout_chance: float, rng=random) -> tuple[str, int]:
     """One try. Returns ("win", 0), ("timeout", minutes) or ("nothing", 0). Chances are percentages."""
     r = rng.random() * 100
@@ -49,6 +62,10 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
             """CREATE TABLE IF NOT EXISTS surprise_tries (
                 guild_id INTEGER, user_id INTEGER, last_try INTEGER, tries INTEGER DEFAULT 0,
                 wins INTEGER DEFAULT 0, timeouts INTEGER DEFAULT 0, PRIMARY KEY (guild_id, user_id))""")
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS surprise_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER, user_id INTEGER, outcome TEXT,
+                minutes INTEGER DEFAULT 0, created_at INTEGER)""")
         await db.commit()
         async with db.execute("SELECT guild_id, prize_role_id, win_chance, timeout_chance, cooldown_seconds, title "
                               "FROM surprise_config") as cur:
@@ -140,6 +157,61 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
             f"Cooldown: {cfg['cooldown'] // 60} min\nTries so far: **{tries}**, prizes won: **{wins}**, "
             f"timeouts given: **{timeouts}**", ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
+    # ---------- who got lucky or unlucky ----------
+
+    async def record(self, guild_id: int, user_id: int, outcome: str, minutes: int = 0):
+        await self.bot.db.execute(
+            "INSERT INTO surprise_log (guild_id, user_id, outcome, minutes, created_at) VALUES (?,?,?,?,?)",
+            (guild_id, user_id, outcome, minutes, int(time.time())))
+        # keep only the newest 5000 entries per server so the table can't grow forever
+        await self.bot.db.execute(
+            "DELETE FROM surprise_log WHERE guild_id=? AND id <= "
+            "(SELECT id FROM surprise_log WHERE guild_id=? ORDER BY id DESC LIMIT 1 OFFSET 5000)", (guild_id, guild_id))
+        await self.bot.db.commit()
+
+    @app_commands.command(name="logs", description="See who got lucky or unlucky in the box (only you see it)")
+    @app_commands.describe(member="Only show this member", show="What to show (default: everything)")
+    @app_commands.choices(show=[app_commands.Choice(name="Everything", value="all"),
+                                app_commands.Choice(name="Lucky (prizes)", value="lucky"),
+                                app_commands.Choice(name="Unlucky (timeouts)", value="unlucky")])
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def logs(self, interaction: discord.Interaction, member: discord.Member | None = None,
+                   show: app_commands.Choice[str] | None = None):
+        gid, kind = interaction.guild_id, (show.value if show else "all")
+        where, args = "guild_id=?", [gid]
+        if member is not None:
+            where += " AND user_id=?"
+            args.append(member.id)
+        wanted = {"lucky": LUCKY, "unlucky": UNLUCKY_OUTCOMES}.get(kind)
+        if wanted:
+            where += f" AND outcome IN ({','.join('?' * len(wanted))})"
+            args += wanted
+        async with self.bot.db.execute(
+                f"SELECT user_id, outcome, minutes, created_at FROM surprise_log WHERE {where} "
+                "ORDER BY id DESC LIMIT 20", args) as cur:
+            rows = await cur.fetchall()
+        async with self.bot.db.execute(f"SELECT COUNT(*) FROM surprise_log WHERE {where}", args) as cur:
+            total = (await cur.fetchone())[0]
+        if not rows:
+            return await interaction.response.send_message("Nothing to show yet.", ephemeral=True)
+
+        lines = [f"<t:{at}:R> <@{uid}> {OUTCOME_LABELS.get(outcome, outcome).format(m=minutes)}"
+                 for uid, outcome, minutes, at in rows]
+        embed = discord.Embed(title="Surprise box logs", description="\n".join(lines), color=discord.Color.gold())
+        # totals for the same filter: how many times lucky, unlucky and nothing
+        async with self.bot.db.execute(
+                f"SELECT outcome, COUNT(*) FROM surprise_log WHERE guild_id=?{' AND user_id=?' if member else ''} "
+                "GROUP BY outcome", [gid] + ([member.id] if member else [])) as cur:
+            counts = dict(await cur.fetchall())
+        lucky = sum(counts.get(o, 0) for o in LUCKY)
+        unlucky = sum(counts.get(o, 0) for o in UNLUCKY_OUTCOMES)
+        who = member.display_name if member else "Everyone"
+        embed.set_footer(text=f"{who}: {lucky} lucky, {unlucky} unlucky, {counts.get('nothing', 0)} nothing. "
+                              f"Showing the latest {len(rows)} of {total}.")
+        await interaction.response.send_message(embed=embed, ephemeral=True,
+                                                allowed_mentions=discord.AllowedMentions.none())
+
     # ---------- opening the box ----------
 
     async def open_box(self, interaction: discord.Interaction):
@@ -180,17 +252,20 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
 
         if outcome == "win":
             if role in member.roles:
+                await self.record(guild.id, member.id, "win_dup")
                 return await interaction.followup.send(
                     f"You hit the jackpot, but you already have {role.mention}. Lucky you!", ephemeral=True,
                     allowed_mentions=discord.AllowedMentions.none())
             try:
                 await member.add_roles(role, reason="Won the surprise box")
             except discord.HTTPException:
+                await self.record(guild.id, member.id, "win_failed")
                 return await interaction.followup.send(
                     "You hit the jackpot, but I couldn't give you the role. Tell a staff member.", ephemeral=True)
             await self.bot.db.execute("UPDATE surprise_tries SET wins=wins+1 WHERE guild_id=? AND user_id=?",
                                       (guild.id, member.id))
             await self.bot.db.commit()
+            await self.record(guild.id, member.id, "win")
             await interaction.followup.send(f"JACKPOT! You won {role.mention}!", ephemeral=True,
                                                     allowed_mentions=discord.AllowedMentions.none())
             try:  # everyone gets to see a win
@@ -203,17 +278,21 @@ class Surprise(commands.GroupCog, group_name="surprise", group_description="A bo
 
         if outcome == "timeout":
             if member.guild_permissions.administrator or member.id == guild.owner_id:
+                await self.record(guild.id, member.id, "timeout_skipped", minutes)
                 return await interaction.followup.send(UNLUCKY, ephemeral=True)  # staff are immune, say nothing more
             try:
                 await member.timeout(timedelta(minutes=minutes), reason="Bad luck in the surprise box")
             except discord.HTTPException:
+                await self.record(guild.id, member.id, "timeout_skipped", minutes)
                 return await interaction.followup.send(UNLUCKY, ephemeral=True)  # I can't time them out
             await self.bot.db.execute("UPDATE surprise_tries SET timeouts=timeouts+1 WHERE guild_id=? AND user_id=?",
                                       (guild.id, member.id))
             await self.bot.db.commit()
+            await self.record(guild.id, member.id, "timeout", minutes)
             await interaction.followup.send(UNLUCKY, ephemeral=True)
             return await self.bot.log(guild, "Surprise box bad luck", f"{member} timed out for {minutes}m")
 
+        await self.record(guild.id, member.id, "nothing")
         await interaction.followup.send(UNLUCKY, ephemeral=True)
 
 
