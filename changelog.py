@@ -38,6 +38,7 @@ FILE_COMMANDS = {
     "giveaway": "/giveaway",
     "customrole": "/role",
     "community": "/profile /confess /capsule /kudos /daily",
+    "surprise": "/surprise",
     "verification": "/verify",
 }
 

@@ -1,0 +1,236 @@
+import random
+import time
+from datetime import datetime, timedelta, timezone
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+TIMEOUT_MINUTES = (1, 2, 3)
+TIMEOUT_WEIGHTS = (50, 30, 20)  # 1 minute is the most common, 3 minutes the rarest
+NOTHING_LINES = (
+    "The box was empty. Better luck next time.",
+    "Just a bit of dust inside. Try again later.",
+    "You shook the box and heard nothing. Maybe next time.",
+    "A tiny confetti popped out, and that was it.",
+    "Not this time. The box wasn't ready to give anything away.",
+)
+
+
+def roll(win_chance: float, timeout_chance: float, rng=random) -> tuple[str, int]:
+    """One try. Returns ("win", 0), ("timeout", minutes) or ("nothing", 0). Chances are percentages."""
+    r = rng.random() * 100
+    if r < win_chance:
+        return "win", 0
+    if r < win_chance + timeout_chance:
+        return "timeout", rng.choices(TIMEOUT_MINUTES, weights=TIMEOUT_WEIGHTS)[0]
+    return "nothing", 0
+
+
+class SurprisePanel(discord.ui.View):
+    """The Open button under the panel. Persistent: it keeps working after the bot restarts."""
+
+    def __init__(self, cog: "Surprise"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Open the box", style=discord.ButtonStyle.success, custom_id="surprise:open")
+    async def open(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.open_box(interaction)
+
+
+class Surprise(commands.GroupCog, group_name="surprise", group_description="A box with a rare prize and some bad luck"):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.config: dict[int, dict] = {}
+        self.busy: set[tuple[int, int]] = set()  # people whose try is being processed right now
+
+    async def cog_load(self):
+        db = self.bot.db
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS surprise_config (
+                guild_id INTEGER PRIMARY KEY, prize_role_id INTEGER, win_chance REAL, timeout_chance REAL,
+                cooldown_seconds INTEGER, title TEXT)""")
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS surprise_tries (
+                guild_id INTEGER, user_id INTEGER, last_try INTEGER, tries INTEGER DEFAULT 0,
+                wins INTEGER DEFAULT 0, timeouts INTEGER DEFAULT 0, PRIMARY KEY (guild_id, user_id))""")
+        await db.commit()
+        async with db.execute("SELECT guild_id, prize_role_id, win_chance, timeout_chance, cooldown_seconds, title "
+                              "FROM surprise_config") as cur:
+            for gid, role_id, win, tmo, cooldown, title in await cur.fetchall():
+                self.config[gid] = {"role_id": role_id, "win": win, "timeout": tmo, "cooldown": cooldown, "title": title}
+        self.bot.add_view(SurprisePanel(self))
+
+    # ---------- setup ----------
+
+    @app_commands.command(name="setup", description="Post a Surprise Box panel with a rare prize and some bad luck")
+    @app_commands.describe(
+        channel="Where to post the box",
+        prize_role="The best prize: the role a lucky member wins (for example Gold)",
+        win_chance="Chance to win the prize, in percent (default 5)",
+        timeout_chance="Chance of bad luck, a 1 to 3 minute timeout, in percent (default 25)",
+        cooldown_minutes="How long each member waits between tries (default 10)",
+        title="Name of the box (default Surprise Box)")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def setup_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel, prize_role: discord.Role,
+                        win_chance: app_commands.Range[float, 0.1, 50.0] = 5.0,
+                        timeout_chance: app_commands.Range[float, 0.0, 80.0] = 25.0,
+                        cooldown_minutes: app_commands.Range[int, 1, 1440] = 10,
+                        title: app_commands.Range[str, 1, 40] = "Surprise Box"):
+        guild = interaction.guild
+        if prize_role.is_default() or prize_role.managed or prize_role >= guild.me.top_role:
+            return await interaction.response.send_message(
+                "I can't hand out that role. Pick a normal role that is below my highest role.", ephemeral=True)
+        if win_chance + timeout_chance > 100:
+            return await interaction.response.send_message(
+                "The win chance and the bad luck chance can't add up to more than 100%.", ephemeral=True)
+        perms = channel.permissions_for(guild.me)
+        if not (perms.view_channel and perms.send_messages and perms.embed_links):
+            return await interaction.response.send_message(
+                f"I need View Channel, Send Messages and Embed Links in {channel.mention}.", ephemeral=True)
+        warning = ""
+        if timeout_chance > 0 and not guild.me.guild_permissions.moderate_members:
+            warning = ("\n**Warning:** I don't have the Moderate Members permission, so I can't give the timeouts. "
+                       "Bad luck will just do nothing until you give it to me.")
+
+        bad_text = (f"**Bad luck ({timeout_chance:g}%)**: a timeout of 1, 2 or 3 minutes.\n" if timeout_chance > 0 else "")
+        embed = discord.Embed(
+            title=title,
+            description=(f"Open the box for a chance to win {prize_role.mention}!\n\n"
+                         f"**Prize ({win_chance:g}%)**: {prize_role.mention}\n{bad_text}"
+                         f"Otherwise nothing happens.\n\n"
+                         f"You can try once every {cooldown_minutes} minute{'s' if cooldown_minutes != 1 else ''}. "
+                         "By pressing the button you accept the bad luck."),
+            color=prize_role.colour if prize_role.colour.value else discord.Color.gold())
+        try:
+            await channel.send(embed=embed, view=SurprisePanel(self), allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            return await interaction.response.send_message("I couldn't post in that channel.", ephemeral=True)
+
+        cfg = {"role_id": prize_role.id, "win": win_chance, "timeout": timeout_chance,
+               "cooldown": cooldown_minutes * 60, "title": title}
+        await self.bot.db.execute(
+            "INSERT OR REPLACE INTO surprise_config (guild_id, prize_role_id, win_chance, timeout_chance, "
+            "cooldown_seconds, title) VALUES (?,?,?,?,?,?)",
+            (guild.id, cfg["role_id"], cfg["win"], cfg["timeout"], cfg["cooldown"], cfg["title"]))
+        await self.bot.db.commit()
+        self.config[guild.id] = cfg
+        await interaction.response.send_message(f"The {title} is posted in {channel.mention}.{warning}", ephemeral=True)
+        await self.bot.log(guild, "Surprise box set up",
+                           f"Prize {prize_role.mention}, win {win_chance:g}%, bad luck {timeout_chance:g}%, "
+                           f"cooldown {cooldown_minutes}m, by {interaction.user}", discord.Color.green())
+
+    @app_commands.command(name="off", description="Turn the Surprise Box off (old panels stop working)")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def off(self, interaction: discord.Interaction):
+        await self.bot.db.execute("DELETE FROM surprise_config WHERE guild_id=?", (interaction.guild_id,))
+        await self.bot.db.commit()
+        self.config.pop(interaction.guild_id, None)
+        await interaction.response.send_message(
+            "The Surprise Box is off. The button on the old panel now says it's closed.", ephemeral=True)
+
+    @app_commands.command(name="status", description="Show the Surprise Box settings and how it has been going")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def status(self, interaction: discord.Interaction):
+        cfg = self.config.get(interaction.guild_id)
+        if not cfg:
+            return await interaction.response.send_message("The Surprise Box isn't set up. Use `/surprise setup`.",
+                                                           ephemeral=True)
+        async with self.bot.db.execute(
+                "SELECT COALESCE(SUM(tries),0), COALESCE(SUM(wins),0), COALESCE(SUM(timeouts),0) "
+                "FROM surprise_tries WHERE guild_id=?", (interaction.guild_id,)) as cur:
+            tries, wins, timeouts = await cur.fetchone()
+        await interaction.response.send_message(
+            f"**{cfg['title']}**\nPrize: <@&{cfg['role_id']}> ({cfg['win']:g}%)\nBad luck: {cfg['timeout']:g}%\n"
+            f"Cooldown: {cfg['cooldown'] // 60} min\nTries so far: **{tries}**, prizes won: **{wins}**, "
+            f"timeouts given: **{timeouts}**", ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+    # ---------- opening the box ----------
+
+    async def open_box(self, interaction: discord.Interaction):
+        guild, member = interaction.guild, interaction.user
+        cfg = self.config.get(guild.id)
+        if not cfg:
+            return await interaction.response.send_message("This box is closed.", ephemeral=True)
+        key = (guild.id, member.id)
+        if key in self.busy:
+            return await interaction.response.send_message("Easy there, your last try is still being opened.",
+                                                           ephemeral=True)
+        self.busy.add(key)
+        try:
+            await self._open(interaction, cfg)
+        finally:
+            self.busy.discard(key)
+
+    async def _open(self, interaction: discord.Interaction, cfg: dict):
+        await interaction.response.defer(ephemeral=True)  # acknowledge fast, the work below can take a moment
+        guild, member = interaction.guild, interaction.user
+        now = int(time.time())
+        async with self.bot.db.execute("SELECT last_try FROM surprise_tries WHERE guild_id=? AND user_id=?",
+                                       (guild.id, member.id)) as cur:
+            row = await cur.fetchone()
+        if row and now - row[0] < cfg["cooldown"]:
+            return await interaction.followup.send(
+                f"The box is still recharging for you. Try again <t:{row[0] + cfg['cooldown']}:R>.", ephemeral=True)
+
+        outcome, minutes = roll(cfg["win"], cfg["timeout"])
+        role = guild.get_role(cfg["role_id"])
+        if outcome == "win" and role is None:
+            outcome = "nothing"  # the prize role was deleted
+        await self.bot.db.execute(
+            "INSERT INTO surprise_tries (guild_id, user_id, last_try, tries) VALUES (?,?,?,1) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET last_try=excluded.last_try, tries=tries+1",
+            (guild.id, member.id, now))
+        await self.bot.db.commit()
+
+        if outcome == "win":
+            if role in member.roles:
+                return await interaction.followup.send(
+                    f"You hit the jackpot, but you already have {role.mention}. Lucky you!", ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none())
+            try:
+                await member.add_roles(role, reason="Won the surprise box")
+            except discord.HTTPException:
+                return await interaction.followup.send(
+                    "You hit the jackpot, but I couldn't give you the role. Tell a staff member.", ephemeral=True)
+            await self.bot.db.execute("UPDATE surprise_tries SET wins=wins+1 WHERE guild_id=? AND user_id=?",
+                                      (guild.id, member.id))
+            await self.bot.db.commit()
+            await interaction.followup.send(f"JACKPOT! You won {role.mention}!", ephemeral=True,
+                                                    allowed_mentions=discord.AllowedMentions.none())
+            try:  # everyone gets to see a win
+                await interaction.channel.send(
+                    f"{member.mention} opened the {cfg['title']} and won {role.mention}!",
+                    allowed_mentions=discord.AllowedMentions(users=[member]))
+            except discord.HTTPException:
+                pass
+            return await self.bot.log(guild, "Surprise box prize", f"{member} won {role.mention}", discord.Color.gold())
+
+        if outcome == "timeout":
+            if member.guild_permissions.administrator or member.id == guild.owner_id:
+                return await interaction.followup.send(
+                    f"Bad luck! You would have been timed out for {minutes} minute{'s' if minutes != 1 else ''}, "
+                    "but staff are immune.", ephemeral=True)
+            try:
+                await member.timeout(timedelta(minutes=minutes), reason="Bad luck in the surprise box")
+            except discord.HTTPException:
+                return await interaction.followup.send(
+                    f"Bad luck! You would have been timed out for {minutes} minute{'s' if minutes != 1 else ''}, "
+                    "but I can't time you out, so you're safe.", ephemeral=True)
+            await self.bot.db.execute("UPDATE surprise_tries SET timeouts=timeouts+1 WHERE guild_id=? AND user_id=?",
+                                      (guild.id, member.id))
+            await self.bot.db.commit()
+            await interaction.followup.send(
+                f"Bad luck! You are timed out for **{minutes} minute{'s' if minutes != 1 else ''}**.", ephemeral=True)
+            return await self.bot.log(guild, "Surprise box bad luck", f"{member} timed out for {minutes}m")
+
+        await interaction.followup.send(random.choice(NOTHING_LINES), ephemeral=True)
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(Surprise(bot))
