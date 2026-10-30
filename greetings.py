@@ -41,6 +41,20 @@ def render(text: str, member: discord.abc.User, guild: discord.Guild) -> str:
             .replace("{server}", server).replace("{count}", str(guild.member_count or 0)))
 
 
+async def read_capped(content, limit: int) -> bytes:
+    """Read a whole response body, refusing anything bigger than `limit` bytes.
+
+    Do NOT use content.read(n) for this: it returns only what has arrived so far, so a big image comes back cut off.
+    """
+    chunks, size = [], 0
+    async for chunk in content.iter_chunked(64 * 1024):
+        size += len(chunk)
+        if size > limit:
+            raise ValueError("That image is bigger than 8 MB.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 async def read_image_url(url: str) -> tuple[bytes, str]:
     """Download an image from a link. Raises ValueError with a message that is safe to show the user."""
     if not url.lower().startswith(("http://", "https://")):
@@ -54,7 +68,7 @@ async def read_image_url(url: str) -> tuple[bytes, str]:
                 ctype = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
                 if ctype not in IMAGE_TYPES:
                     raise ValueError("That link isn't a PNG, JPG, GIF or WebP image.")
-                data = await resp.content.read(MAX_IMAGE_BYTES + 1)
+                data = await read_capped(resp.content, MAX_IMAGE_BYTES)
     except (aiohttp.ClientError, asyncio.TimeoutError):
         raise ValueError("I couldn't download that link. Check it and try again.")
     if len(data) > MAX_IMAGE_BYTES:
