@@ -16,6 +16,7 @@ except ImportError:  # Pillow missing: icons are then sent exactly as uploaded
     Image = ImageOps = None
 
 MAX_NAME_LENGTH = 32
+CREW_DEFAULT = 3  # friends a member can share their custom role with (staff can change it with /role crewsize)
 ICON_SIZE = 128  # role icons are shown tiny, so a 128x128 PNG is plenty and far below Discord's 256 KB limit
 
 
@@ -179,6 +180,65 @@ class OldRolePanel(discord.ui.View):
         await self.outdated(interaction)
 
 
+def rank_entries(entries: list[dict]) -> list[dict]:
+    """Most liked first; roles with the same number of likes are listed alphabetically."""
+    return sorted(entries, key=lambda e: (-e["likes"], e["name"].lower()))
+
+
+class GalleryView(discord.ui.View):
+    """Browse everyone's custom roles and like them. Shown privately to whoever opened it."""
+
+    def __init__(self, cog: "CustomRoles", guild: discord.Guild, viewer: discord.Member):
+        super().__init__(timeout=300)
+        self.cog, self.guild, self.viewer = cog, guild, viewer
+        self.index = 0
+        self.focus: int | None = None   # owner id to keep on screen when the ranking changes after a like
+        self.entries: list[dict] = []
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.viewer.id
+
+    async def refresh(self) -> discord.Embed:
+        self.entries = await self.cog.gallery_entries(self.guild)
+        if self.focus is not None:
+            for i, e in enumerate(self.entries):
+                if e["owner_id"] == self.focus:
+                    self.index = i
+        self.index = max(0, min(self.index, len(self.entries) - 1))
+        entry = self.entries[self.index] if self.entries else None
+        self.focus = entry["owner_id"] if entry else None
+        self.prev_button.disabled = self.index <= 0
+        self.next_button.disabled = self.index >= len(self.entries) - 1
+        self.like_button.disabled = entry is None or entry["owner_id"] == self.viewer.id
+        if entry:
+            verb = "Unlike" if self.viewer.id in entry["likers"] else "Like"
+            self.like_button.label = f"{verb} ({entry['likes']})"
+        return self.cog.gallery_embed(entry, self.index, len(self.entries))
+
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index, self.focus = self.index - 1, None
+        await interaction.response.edit_message(embed=await self.refresh(), view=self)
+
+    @discord.ui.button(label="Like", style=discord.ButtonStyle.primary)
+    async def like_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        entry = self.entries[self.index] if self.entries else None
+        if entry and entry["owner_id"] != self.viewer.id:
+            db, gid, owner = self.cog.bot.db, self.guild.id, entry["owner_id"]
+            cur = await db.execute("DELETE FROM role_likes WHERE guild_id=? AND role_owner_id=? AND voter_id=?",
+                                   (gid, owner, self.viewer.id))
+            if not cur.rowcount:  # not liked yet, so this press is a like
+                await db.execute("INSERT OR IGNORE INTO role_likes (guild_id, role_owner_id, voter_id) VALUES (?,?,?)",
+                                 (gid, owner, self.viewer.id))
+            await db.commit()
+        await interaction.response.edit_message(embed=await self.refresh(), view=self)
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index, self.focus = self.index + 1, None
+        await interaction.response.edit_message(embed=await self.refresh(), view=self)
+
+
 class CustomRoles(commands.GroupCog, group_name="role", group_description="Custom roles for boosters and selected roles"):
     """Eligible members make ONE cosmetic role (a name and a color, no permissions) that is given to them.
 
@@ -199,11 +259,17 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         await db.execute("CREATE TABLE IF NOT EXISTS custom_role_access (guild_id INTEGER, role_id INTEGER, "
                          "PRIMARY KEY (guild_id, role_id))")
         await db.execute("CREATE TABLE IF NOT EXISTS custom_role_settings (guild_id INTEGER PRIMARY KEY, "
-                         "anchor_role_id INTEGER, boosters INTEGER DEFAULT 1, anchor_side TEXT DEFAULT 'below')")
-        try:  # databases made before "above/below" existed need the new column
-            await db.execute("ALTER TABLE custom_role_settings ADD COLUMN anchor_side TEXT DEFAULT 'below'")
-        except Exception:
-            pass  # the column is already there
+                         "anchor_role_id INTEGER, boosters INTEGER DEFAULT 1, anchor_side TEXT DEFAULT 'below', "
+                         f"crew_max INTEGER DEFAULT {CREW_DEFAULT})")
+        for column in ("anchor_side TEXT DEFAULT 'below'", f"crew_max INTEGER DEFAULT {CREW_DEFAULT}"):
+            try:  # databases made before these columns existed need them added
+                await db.execute(f"ALTER TABLE custom_role_settings ADD COLUMN {column}")
+            except Exception:
+                pass  # the column is already there
+        await db.execute("CREATE TABLE IF NOT EXISTS role_crew (guild_id INTEGER, owner_id INTEGER, member_id INTEGER, "
+                         "PRIMARY KEY (guild_id, owner_id, member_id))")
+        await db.execute("CREATE TABLE IF NOT EXISTS role_likes (guild_id INTEGER, role_owner_id INTEGER, "
+                         "voter_id INTEGER, PRIMARY KEY (guild_id, role_owner_id, voter_id))")
         await db.commit()
         async with db.execute("SELECT guild_id, user_id, role_id FROM custom_roles") as cur:
             for guild_id, user_id, role_id in await cur.fetchall():
@@ -211,16 +277,19 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
         async with db.execute("SELECT guild_id, role_id FROM custom_role_access") as cur:
             for guild_id, role_id in await cur.fetchall():
                 self.access.setdefault(guild_id, set()).add(role_id)
-        async with db.execute("SELECT guild_id, anchor_role_id, boosters, anchor_side FROM custom_role_settings") as cur:
-            for guild_id, anchor, boosters, side in await cur.fetchall():
-                self.settings[guild_id] = {"anchor": anchor, "boosters": bool(boosters), "side": side or "below"}
+        async with db.execute("SELECT guild_id, anchor_role_id, boosters, anchor_side, crew_max "
+                              "FROM custom_role_settings") as cur:
+            for guild_id, anchor, boosters, side, crew_max in await cur.fetchall():
+                self.settings[guild_id] = {"anchor": anchor, "boosters": bool(boosters), "side": side or "below",
+                                           "crew_max": CREW_DEFAULT if crew_max is None else crew_max}
         self.bot.add_view(RolePanel(self))
         self.bot.add_view(OldRolePanel())
 
     # ---------- helpers ----------
 
     def cfg(self, guild_id: int) -> dict:
-        return self.settings.get(guild_id, {"anchor": None, "boosters": True, "side": "below"})
+        return self.settings.get(guild_id, {"anchor": None, "boosters": True, "side": "below",
+                                            "crew_max": CREW_DEFAULT})
 
     def eligible(self, member: discord.Member) -> bool:
         if member.guild_permissions.administrator:
@@ -233,14 +302,17 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     async def save_settings(self, guild_id: int, **changes):
         cfg = dict(self.cfg(guild_id), **changes)
         await self.bot.db.execute(
-            "INSERT OR REPLACE INTO custom_role_settings (guild_id, anchor_role_id, boosters, anchor_side) "
-            "VALUES (?,?,?,?)", (guild_id, cfg["anchor"], int(cfg["boosters"]), cfg["side"]))
+            "INSERT OR REPLACE INTO custom_role_settings (guild_id, anchor_role_id, boosters, anchor_side, crew_max) "
+            "VALUES (?,?,?,?,?)", (guild_id, cfg["anchor"], int(cfg["boosters"]), cfg["side"], cfg["crew_max"]))
         await self.bot.db.commit()
         self.settings[guild_id] = cfg
 
     async def forget(self, guild_id: int, user_id: int):
         self.owned.pop((guild_id, user_id), None)
         await self.bot.db.execute("DELETE FROM custom_roles WHERE guild_id=? AND user_id=?", (guild_id, user_id))
+        # the role is gone, so its crew and its likes go with it
+        await self.bot.db.execute("DELETE FROM role_crew WHERE guild_id=? AND owner_id=?", (guild_id, user_id))
+        await self.bot.db.execute("DELETE FROM role_likes WHERE guild_id=? AND role_owner_id=?", (guild_id, user_id))
         await self.bot.db.commit()
 
     async def delete_custom(self, guild: discord.Guild, user_id: int, reason: str):
@@ -645,6 +717,165 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
             f"New roles go: {anchor}\nCustom roles in use: **{count}**",
             ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
 
+    # ---------- Role Crew: share your role with a few friends ----------
+
+    def own_role(self, guild: discord.Guild, user_id: int) -> discord.Role | None:
+        role_id = self.owned.get((guild.id, user_id))
+        return guild.get_role(role_id) if role_id else None
+
+    async def crew_ids(self, guild_id: int, owner_id: int) -> list[int]:
+        async with self.bot.db.execute("SELECT member_id FROM role_crew WHERE guild_id=? AND owner_id=?",
+                                       (guild_id, owner_id)) as cur:
+            return [r[0] for r in await cur.fetchall()]
+
+    @app_commands.command(name="share", description="Share your custom role with a friend (they join your crew)")
+    @app_commands.describe(member="The friend who gets your role")
+    @app_commands.guild_only()
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def share(self, interaction: discord.Interaction, member: discord.Member):
+        guild, owner = interaction.guild, interaction.user
+        own = self.own_role(guild, owner.id)
+        limit = self.cfg(guild.id)["crew_max"]
+        if own is None or not self.eligible(owner):
+            return await interaction.response.send_message("You need your own custom role first.", ephemeral=True)
+        if limit <= 0:
+            return await interaction.response.send_message("Sharing roles is turned off on this server.", ephemeral=True)
+        if member.bot or member.id == owner.id:
+            return await interaction.response.send_message("Pick a friend, not yourself or a bot.", ephemeral=True)
+        crew = await self.crew_ids(guild.id, owner.id)
+        if member.id in crew:
+            return await interaction.response.send_message(f"{member.mention} is already in your crew.",
+                                                           ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        if len(crew) >= limit:
+            return await interaction.response.send_message(
+                f"Your crew is full ({limit} friends). Use `/role unshare` to make room.", ephemeral=True)
+        try:
+            await member.add_roles(own, reason=f"Shared by {owner}")
+        except discord.HTTPException:
+            return await interaction.response.send_message(
+                "I couldn't give them the role. Ask an admin to check that my role is above custom roles.",
+                ephemeral=True)
+        await self.bot.db.execute("INSERT OR IGNORE INTO role_crew (guild_id, owner_id, member_id) VALUES (?,?,?)",
+                                  (guild.id, owner.id, member.id))
+        await self.bot.db.commit()
+        await interaction.response.send_message(
+            f"{member.mention} is now in your crew and has {own.mention} ({len(crew) + 1}/{limit}). "
+            "If you lose your custom role, they lose it too.",
+            allowed_mentions=discord.AllowedMentions(users=[member]))
+
+    @app_commands.command(name="unshare", description="Take your custom role back from a friend")
+    @app_commands.guild_only()
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def unshare(self, interaction: discord.Interaction, member: discord.Member):
+        cur = await self.bot.db.execute("DELETE FROM role_crew WHERE guild_id=? AND owner_id=? AND member_id=?",
+                                        (interaction.guild_id, interaction.user.id, member.id))
+        await self.bot.db.commit()
+        if not cur.rowcount:
+            return await interaction.response.send_message(
+                f"{member.mention} isn't in your crew.", ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none())
+        own = self.own_role(interaction.guild, interaction.user.id)
+        if own is not None:
+            try:
+                await member.remove_roles(own, reason=f"Unshared by {interaction.user}")
+            except discord.HTTPException:
+                pass
+        await interaction.response.send_message(f"Removed {member.mention} from your crew.",
+                                                ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+    @app_commands.command(name="leave", description="Leave someone's crew and give back their role")
+    @app_commands.describe(owner="Whose crew to leave")
+    @app_commands.guild_only()
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def leave(self, interaction: discord.Interaction, owner: discord.Member):
+        cur = await self.bot.db.execute("DELETE FROM role_crew WHERE guild_id=? AND owner_id=? AND member_id=?",
+                                        (interaction.guild_id, owner.id, interaction.user.id))
+        await self.bot.db.commit()
+        if not cur.rowcount:
+            return await interaction.response.send_message(f"You're not in {owner.display_name}'s crew.",
+                                                           ephemeral=True)
+        role = self.own_role(interaction.guild, owner.id)
+        if role is not None:
+            try:
+                await interaction.user.remove_roles(role, reason="Left the crew")
+            except discord.HTTPException:
+                pass
+        await interaction.response.send_message(f"You left {owner.display_name}'s crew.", ephemeral=True)
+
+    @app_commands.command(name="crew", description="See who is in someone's crew")
+    @app_commands.guild_only()
+    async def crew(self, interaction: discord.Interaction, member: discord.Member | None = None):
+        member, gid = member or interaction.user, interaction.guild_id
+        mine = await self.crew_ids(gid, member.id)
+        async with self.bot.db.execute("SELECT owner_id FROM role_crew WHERE guild_id=? AND member_id=?",
+                                       (gid, member.id)) as cur:
+            joined = [r[0] for r in await cur.fetchall()]
+        limit = self.cfg(gid)["crew_max"]
+        own = self.own_role(interaction.guild, member.id)
+        lines = [f"**{discord.utils.escape_markdown(member.display_name)}'s crew** ({len(mine)}/{limit})"
+                 + (f" with {own.mention}" if own else "")]
+        lines.append(", ".join(f"<@{m}>" for m in mine) if mine else "Nobody yet.")
+        if joined:
+            lines.append("\n**In the crew of:** " + ", ".join(f"<@{o}>" for o in joined))
+        await interaction.response.send_message("\n".join(lines), ephemeral=True,
+                                                allowed_mentions=discord.AllowedMentions.none())
+
+    @app_commands.command(name="crewsize", description="Set how many friends each member can share their role with")
+    @app_commands.describe(amount="0 turns sharing off. Default is 3")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def crewsize(self, interaction: discord.Interaction, amount: app_commands.Range[int, 0, 10]):
+        await self.save_settings(interaction.guild_id, crew_max=amount)
+        await interaction.response.send_message(
+            "Sharing custom roles is now **off**." if amount == 0 else
+            f"Members can now share their custom role with up to **{amount}** friend{'s' if amount != 1 else ''}. "
+            "Crews that are already bigger keep their members.", ephemeral=True)
+
+    # ---------- Role Gallery: browse and like everyone's roles ----------
+
+    async def gallery_entries(self, guild: discord.Guild) -> list[dict]:
+        async with self.bot.db.execute("SELECT role_owner_id, voter_id FROM role_likes WHERE guild_id=?",
+                                       (guild.id,)) as cur:
+            likes: dict[int, set[int]] = {}
+            for owner_id, voter_id in await cur.fetchall():
+                likes.setdefault(owner_id, set()).add(voter_id)
+        async with self.bot.db.execute("SELECT owner_id, COUNT(*) FROM role_crew WHERE guild_id=? GROUP BY owner_id",
+                                       (guild.id,)) as cur:
+            crews = dict(await cur.fetchall())
+        entries = []
+        for (gid, uid), role_id in self.owned.items():
+            role = guild.get_role(role_id) if gid == guild.id else None
+            if role is None:
+                continue
+            likers = likes.get(uid, set())
+            entries.append({"owner_id": uid, "role": role, "name": role.name, "likes": len(likers),
+                            "likers": likers, "crew": crews.get(uid, 0)})
+        return rank_entries(entries)
+
+    def gallery_embed(self, entry: dict | None, index: int, total: int) -> discord.Embed:
+        if entry is None:
+            return discord.Embed(
+                title="No custom roles yet",
+                description="Nobody has made one yet. Boosters and selected-role members can start with the "
+                            "Create Role button.", color=discord.Color.blurple())
+        role = entry["role"]
+        embed = discord.Embed(
+            title=discord.utils.escape_markdown(role.name),
+            description=f"Made by <@{entry['owner_id']}>\nLikes: **{entry['likes']}**\nCrew: **{entry['crew']}** friends",
+            color=role.colour if role.colour.value else discord.Color.blurple())
+        if role.icon:
+            embed.set_thumbnail(url=role.icon.url)
+        embed.set_footer(text=f"Role {index + 1} of {total} - ranked by likes")
+        return embed
+
+    @app_commands.command(name="gallery", description="Browse everyone's custom roles and like your favorites")
+    @app_commands.guild_only()
+    async def gallery(self, interaction: discord.Interaction):
+        view = GalleryView(self, interaction.guild, interaction.user)
+        embed = await view.refresh()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True,
+                                                allowed_mentions=discord.AllowedMentions.none())
+
     # ---------- cleanup ----------
 
     @commands.Cog.listener()
@@ -656,6 +887,9 @@ class CustomRoles(commands.GroupCog, group_name="role", group_description="Custo
     async def on_member_remove(self, member: discord.Member):
         if (member.guild.id, member.id) in self.owned:
             await self.delete_custom(member.guild, member.id, "Member left the server")
+        await self.bot.db.execute("DELETE FROM role_crew WHERE guild_id=? AND member_id=?",
+                                  (member.guild.id, member.id))  # they no longer take up a crew spot
+        await self.bot.db.commit()
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role):
