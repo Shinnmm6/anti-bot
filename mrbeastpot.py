@@ -1,9 +1,13 @@
+import os
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 DESCRIPTION = ("# DO NOT SEND MESSAGES IN THIS CHANNEL\n"
                "This channel is used to catch spam bots. Any messages sent here will result in a {action}.")
+LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "mrbeastpot.png")
+LOGO_NAME = "mrbeastpot.png"
 ACTION_WORDS = {"softban": "softban", "ban": "ban", "kick": "kick"}
 
 
@@ -28,6 +32,8 @@ class MrBeastPot(commands.GroupCog, group_name="mrbeastpot", group_description="
         embed = discord.Embed(description=DESCRIPTION.format(action=ACTION_WORDS[action]),
                               color=discord.Color.from_rgb(37, 37, 43))
         embed.set_footer(text=f"Bans: {bans}")
+        if os.path.exists(LOGO_PATH):
+            embed.set_thumbnail(url=f"attachment://{LOGO_NAME}")  # the logo, attached when the panel is posted
         return embed
 
     # ---------- setup ----------
@@ -54,8 +60,9 @@ class MrBeastPot(commands.GroupCog, group_name="mrbeastpot", group_description="
         old = self.config.get(guild.id)
         bans = old["bans"] if old else 0  # keep the counter if the trap is moved
         try:
-            msg = await channel.send(embed=self.make_embed(act, bans))
-        except discord.HTTPException:
+            files = [discord.File(LOGO_PATH, filename=LOGO_NAME)] if os.path.exists(LOGO_PATH) else []
+            msg = await channel.send(embed=self.make_embed(act, bans), files=files)
+        except (discord.HTTPException, OSError):
             return await interaction.response.send_message("I couldn't post in that channel.", ephemeral=True)
         cfg = {"channel_id": channel.id, "message_id": msg.id, "action": act, "bans": bans}
         await self.bot.db.execute(
