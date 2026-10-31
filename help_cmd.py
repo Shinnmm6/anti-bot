@@ -153,6 +153,26 @@ PAGES: dict[str, str] = {
         "**/wordchain**: `setup` a channel where each word must start with the last letter of the previous one. "
         "No repeats, no going twice in a row, wrong words are deleted. `top`, `status`, `reset`, `off`.\n"
         "**/remind me when text [dm]**: for example `/remind me 2h call mom`. `list` and `cancel` too."),
+    "Security tools": (
+        "**/lockdown start [reason]** (Administrator): stops @everyone from talking in every text channel in one go. "
+        "**/lockdown end** puts every channel back exactly how it was. `status` shows if it's on.\n"
+        "**/gate set min_days action**: kick (with a DM explaining why) or just log accounts younger than the number "
+        "of days. `/gate allow user_id` lets one trusted new account in. `off` and `status`.\n"
+        "**/quarantine add member [reason] [hours]**: saves and removes all of a member's roles and times them out. "
+        "**/quarantine release member** gives everything back. `list` shows who is quarantined.\n"
+        "**/securityscan**: checks your server for risky permissions (everyone, admin bots, too many admins), low "
+        "verification and missing 2FA, and tells you what to fix.\n"
+        "**/raidclean minutes [action] [only_no_roles]**: after a raid, preview everyone who joined in the last few "
+        "minutes and ban or kick them with one confirm button. Members with roles are skipped by default."),
+    "Party games": (
+        "**/story**: `start title opening`, then everyone `add`s one sentence (never twice in a row). `read` shows it so "
+        "far and `finish` posts the whole story.\n"
+        "**/potato**: `start` a hot potato, `pass member` it on. It explodes after a secret random time and the "
+        "holder is burned. `top` is the hall of burns.\n"
+        "**/riddle post** (staff): a private form takes the riddle and its answer (use `|` for several accepted "
+        "answers). Members press Answer, wrong tries are private, the first correct one wins. `reveal`, `top`.\n"
+        "**/numberhunt**: staff `start` a secret number, everyone uses `guess` and gets hot or cold hints. `stop`, `top`.\n"
+        "**/truthdare ask [kind] [member]**: a random truth or dare. Staff can `add`, `list` and `remove` their own."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
