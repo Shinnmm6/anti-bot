@@ -47,6 +47,7 @@ FILE_COMMANDS = {
     "arcade": "/trivia, /hangman, /scramble, /tierlist, /whosaid",
     "lounge": "/predict, /pet, /connect4, /wordle, /fortune",
     "playground": "/telephone, /minesweeper, /memory, /quickdraw, /ship",
+    "couples": "/couple, /lovenote, /datenight, /couplequiz, /mindmeld",
     "verification": "/verify",
 }
 

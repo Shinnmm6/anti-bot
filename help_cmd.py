@@ -203,6 +203,17 @@ PAGES: dict[str, str] = {
         "out. `top` shows the fastest times (network lag counts).\n"
         "**/ship match first [second]**: a just-for-fun compatibility score with a ship name, a green flag and a "
         "red flag. The same pair always gets the same result."),
+    "Couples and fun": (
+        "Everything here needs consent: nobody becomes a couple unless they press Accept.\n\n"
+        "**/couple**: `propose member` (they can say no), `status [member]` shows days together, love points and "
+        "level, `breakup` ends it (asks you to confirm), `top` ranks the couples by love points.\n"
+        "**/lovenote send message [public]**: a sweet note to your partner, in the channel or by DM. +1 love point a day.\n"
+        "**/datenight idea**: a date idea. When both partners press We did it, they get +10 love points (once per "
+        "20 hours). `/datenight spark` gives a conversation starter.\n"
+        "**/couplequiz start partner**: answer 5 questions about yourself in secret, then your partner guesses. "
+        "Works for any two members, and partners earn love points.\n"
+        "**/mindmeld start member**: both secretly type a word and try to match. Up to 8 rounds. `top` shows the "
+        "pairs who think most alike."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
