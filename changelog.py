@@ -41,6 +41,7 @@ FILE_COMMANDS = {
     "surprise": "/surprise",
     "mrbeastpot": "/mrbeastpot",
     "fun": "/wyr, /pairup, /vibe, /duel, /birthday",
+    "social": "/lfg, /secretsanta, /habit, /wordchain, /remind",
     "verification": "/verify",
 }
 

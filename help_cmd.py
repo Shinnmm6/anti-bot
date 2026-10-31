@@ -142,6 +142,17 @@ PAGES: dict[str, str] = {
         "`/duel top` is the leaderboard.\n"
         "**/birthday**: `set month day [utc_offset]`, `remove`, `next`, and `channel` (staff) for where the bot "
         "announces them. Only the day and month are stored."),
+    "Social tools": (
+        "**/lfg post game slots [note] [hours]**: a looking-for-group post with Join, Leave and Close buttons. "
+        "When it fills, everyone in the group is pinged. It closes by itself.\n"
+        "**/secretsanta**: staff `open` an event, members press Join, then `draw` sends everyone their giftee by DM "
+        "(nobody gets themselves). `mine` shows yours if DMs are closed, `cancel` stops it.\n"
+        "**/habit**: `add` up to 5 daily habits (set your `utc_offset` so the day ends at your midnight), `done` "
+        "to check in, `list`, `remove`, and `board` for the best streaks. Miss a day and the streak restarts. "
+        "Mark a habit private to keep it off the board.\n"
+        "**/wordchain**: `setup` a channel where each word must start with the last letter of the previous one. "
+        "No repeats, no going twice in a row, wrong words are deleted. `top`, `status`, `reset`, `off`.\n"
+        "**/remind me when text [dm]**: for example `/remind me 2h call mom`. `list` and `cancel` too."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
