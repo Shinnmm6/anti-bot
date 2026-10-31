@@ -40,6 +40,7 @@ FILE_COMMANDS = {
     "community": "/profile /confess /capsule /kudos /daily",
     "surprise": "/surprise",
     "mrbeastpot": "/mrbeastpot",
+    "fun": "/wyr, /pairup, /vibe, /duel, /birthday",
     "verification": "/verify",
 }
 

@@ -131,6 +131,17 @@ PAGES: dict[str, str] = {
         "The message shows a live **Bans** counter. Everything caught is also sent to your log channel with what "
         "they posted. Staff, the owner and anyone above the bot are never touched. The bot needs Ban Members, "
         "Kick Members and Manage Messages, and the channel must be visible to @everyone."),
+    "Fun and social": (
+        "**/wyr ask option_a option_b**: a would you rather poll with live percentages. Members vote with buttons "
+        "and can change their vote. `/wyr end message_id` closes it.\n"
+        "**/pairup**: members `join` the pool with a topic, then staff run `/pairup match` and everyone is paired "
+        "with someone new (recent matches are avoided). `leave` and `pool` also exist.\n"
+        "**/vibe**: `set` your mood, `board` shows the server's mood for the last 24 hours, `panel` (staff) posts a "
+        "mood picker.\n"
+        "**/duel challenge member**: rock paper scissors, first to 2. Picks are secret and revealed together. "
+        "`/duel top` is the leaderboard.\n"
+        "**/birthday**: `set month day [utc_offset]`, `remove`, `next`, and `channel` (staff) for where the bot "
+        "announces them. Only the day and month are stored."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
