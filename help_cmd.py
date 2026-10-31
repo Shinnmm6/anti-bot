@@ -296,10 +296,12 @@ def make_embed(name: str) -> discord.Embed:
 
 
 class HelpSelect(discord.ui.Select):
-    def __init__(self):
-        super().__init__(
-            placeholder="Pick a section",
-            options=[discord.SelectOption(label=name, value=name) for name in PAGES])
+    """A dropdown holds at most 25 options, so the sections are split over several dropdowns."""
+
+    def __init__(self, names: list[str], index: int, total: int):
+        label = f"Sections {index + 1} of {total}: {names[0]} ... {names[-1]}" if total > 1 else "Pick a section"
+        super().__init__(placeholder=label[:150], row=index,
+                         options=[discord.SelectOption(label=name[:100], value=name) for name in names])
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.edit_message(embed=make_embed(self.values[0]), view=self.view)
@@ -308,7 +310,11 @@ class HelpSelect(discord.ui.Select):
 class HelpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(HelpSelect())
+        names = list(PAGES)
+        parts = max(1, -(-len(names) // 25))   # how many dropdowns we need
+        size = -(-len(names) // parts)         # spread the sections evenly
+        for i in range(parts):
+            self.add_item(HelpSelect(names[i * size:(i + 1) * size], i, parts))
 
 
 class HelpCog(commands.Cog):
