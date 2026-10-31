@@ -173,6 +173,17 @@ PAGES: dict[str, str] = {
         "answers). Members press Answer, wrong tries are private, the first correct one wins. `reveal`, `top`.\n"
         "**/numberhunt**: staff `start` a secret number, everyone uses `guess` and gets hot or cold hints. `stop`, `top`.\n"
         "**/truthdare ask [kind] [member]**: a random truth or dare. Staff can `add`, `list` and `remove` their own."),
+    "Arcade games": (
+        "**/trivia ask [seconds]**: a multiple choice question with buttons. Right answers get 1 point, the fastest "
+        "gets 2. `/trivia top` is the leaderboard.\n"
+        "**/hangman**: `start`, then the whole server uses `guess` with a letter or the full word. 6 wrong guesses "
+        "and the man hangs. `stop`, `top`.\n"
+        "**/scramble start [rounds] [seconds]**: the bot posts scrambled words and the first person to type the "
+        "right word in the channel scores. `stop`, `top`.\n"
+        "**/tierlist create topic items**: the server ranks things from S to D. Members press Vote and rate each "
+        "item, Results shows the current list, `/tierlist end message_id` posts the final one.\n"
+        "**/whosaid play**: shows a random recent message from the channel and 4 possible authors. One guess "
+        "each, `top` for the best detectives. Needs Read Message History."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"

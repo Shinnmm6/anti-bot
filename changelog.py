@@ -44,6 +44,7 @@ FILE_COMMANDS = {
     "social": "/lfg, /secretsanta, /habit, /wordchain, /remind",
     "security": "/lockdown, /gate, /quarantine, /securityscan, /raidclean",
     "party": "/story, /potato, /riddle, /numberhunt, /truthdare",
+    "arcade": "/trivia, /hangman, /scramble, /tierlist, /whosaid",
     "verification": "/verify",
 }
 
