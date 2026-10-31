@@ -45,6 +45,7 @@ FILE_COMMANDS = {
     "security": "/lockdown, /gate, /quarantine, /securityscan, /raidclean",
     "party": "/story, /potato, /riddle, /numberhunt, /truthdare",
     "arcade": "/trivia, /hangman, /scramble, /tierlist, /whosaid",
+    "lounge": "/predict, /pet, /connect4, /wordle, /fortune",
     "verification": "/verify",
 }
 

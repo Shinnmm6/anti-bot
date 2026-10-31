@@ -184,6 +184,16 @@ PAGES: dict[str, str] = {
         "item, Results shows the current list, `/tierlist end message_id` posts the final one.\n"
         "**/whosaid play**: shows a random recent message from the channel and 4 possible authors. One guess "
         "each, `top` for the best detectives. Needs Read Message History."),
+    "Lounge games": (
+        "**/predict create question [hours]** (staff): the server votes Yes or No with buttons. When it's over "
+        "`/predict resolve message_id outcome` scores everyone, and `/predict top` ranks the best predictors.\n"
+        "**/pet**: `adopt name kind`, then `feed` and `play` with it. It gets hungry and sad as time passes and "
+        "levels up when you care for it. `status [member]` and `top`.\n"
+        "**/connect4 challenge member**: two players, buttons for columns, four in a row wins. `top`.\n"
+        "**/wordle**: `start` a private 5 letter puzzle, `guess` a word (6 tries), `giveup`, `stats`, `top`. A win is "
+        "shared in the channel without spoiling the word.\n"
+        "**/fortune today [public]**: a fortune, lucky number, color and luck level that stays the same all day. "
+        "`/fortune luckiest` shows who is luckiest today."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
