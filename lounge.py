@@ -1,3 +1,4 @@
+import os
 import random
 import time
 from collections import Counter
@@ -172,6 +173,18 @@ class Predict(commands.GroupCog, group_name="predict", group_description="Make p
 PET_KINDS = {"cat": "meows", "dog": "wags its tail", "dragon": "puffs a little smoke", "slime": "wobbles happily",
              "fox": "yips", "owl": "hoots softly"}
 FEED_COOLDOWN, PLAY_COOLDOWN = 2 * 3600, 3600
+PET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "pets")
+
+
+def pet_card(kind: str, title: str, text: str, color: discord.Color | None = None, big: bool = False) -> dict:
+    """send_message arguments for an embed that shows the pet's picture."""
+    embed = discord.Embed(title=title, description=text, color=color or discord.Color.pink())
+    path = os.path.join(PET_DIR, f"{kind}.png")
+    if not os.path.exists(path):
+        return {"embed": embed}
+    url = f"attachment://{kind}.png"
+    embed.set_image(url=url) if big else embed.set_thumbnail(url=url)
+    return {"embed": embed, "file": discord.File(path, filename=f"{kind}.png")}
 
 
 def pet_decay(fullness: float, mood: float, seconds: float) -> tuple[float, float]:
@@ -244,9 +257,10 @@ class Pet(commands.GroupCog, group_name="pet", group_description="Adopt and care
             "INSERT INTO pets (guild_id, user_id, name, kind, fullness, mood, updated_at, created_at) "
             "VALUES (?,?,?,?,?,?,?,?)", (interaction.guild_id, interaction.user.id, name, kind.value, 70, 70, now, now))
         await self.bot.db.commit()
-        await interaction.response.send_message(
-            f"You adopted a {kind.value} named **{name}**! It {PET_KINDS[kind.value]}. "
-            "Feed it with `/pet feed` and play with `/pet play`. It gets hungry and sad over time.")
+        await interaction.response.send_message(**pet_card(
+            kind.value, f"Meet {name}!",
+            f"You adopted a {kind.value} named **{name}**! It {PET_KINDS[kind.value]}.\n"
+            "Feed it with `/pet feed` and play with `/pet play`. It gets hungry and sad over time.", big=True))
 
     @app_commands.command(name="feed", description="Feed your pet")
     @app_commands.guild_only()
@@ -262,8 +276,9 @@ class Pet(commands.GroupCog, group_name="pet", group_description="Adopt and care
         p["xp"] += 5
         p["last_feed"] = p["now"]
         await self.save(interaction.guild_id, interaction.user.id, p)
-        await interaction.response.send_message(
-            f"**{p['name']}** munches happily and {PET_KINDS[p['kind']]}. Fullness `{bar(p['fullness'])}` {p['fullness']:.0f}%")
+        await interaction.response.send_message(**pet_card(
+            p["kind"], f"{p['name']} is fed",
+            f"**{p['name']}** munches happily and {PET_KINDS[p['kind']]}.\nFullness `{bar(p['fullness'])}` {p['fullness']:.0f}%"))
 
     @app_commands.command(name="play", description="Play with your pet")
     @app_commands.guild_only()
@@ -283,8 +298,9 @@ class Pet(commands.GroupCog, group_name="pet", group_description="Adopt and care
         p["xp"] += 8
         p["last_play"] = p["now"]
         await self.save(interaction.guild_id, interaction.user.id, p)
-        await interaction.response.send_message(
-            f"You play with **{p['name']}** and it {PET_KINDS[p['kind']]}. Mood `{bar(p['mood'])}` {p['mood']:.0f}%")
+        await interaction.response.send_message(**pet_card(
+            p["kind"], f"Playtime with {p['name']}",
+            f"You play with **{p['name']}** and it {PET_KINDS[p['kind']]}.\nMood `{bar(p['mood'])}` {p['mood']:.0f}%"))
 
     @app_commands.command(name="status", description="See how a pet is doing")
     @app_commands.guild_only()
@@ -296,13 +312,14 @@ class Pet(commands.GroupCog, group_name="pet", group_description="Adopt and care
                 "You don't have a pet. Use `/pet adopt`." if target.id == interaction.user.id
                 else f"{target.display_name} doesn't have a pet.", ephemeral=True)
         await self.save(interaction.guild_id, target.id, p)  # store the time that passed
-        embed = discord.Embed(title=f"{p['name']} the {p['kind']}", color=discord.Color.pink(),
-                              description=f"{p['name']} is {pet_feeling(p['fullness'], p['mood'])}")
+        card = pet_card(p["kind"], f"{p['name']} the {p['kind']}", f"{p['name']} is {pet_feeling(p['fullness'], p['mood'])}",
+                        big=True)
+        embed = card["embed"]
         embed.add_field(name="Fullness", value=f"`{bar(p['fullness'])}` {p['fullness']:.0f}%")
         embed.add_field(name="Mood", value=f"`{bar(p['mood'])}` {p['mood']:.0f}%")
         embed.add_field(name="Level", value=f"{pet_level(p['xp'])} ({p['xp'] % 50}/50 xp)")
         embed.set_footer(text=f"Owner: {target.display_name}. Adopted {(p['now'] - p['created']) // 86400} days ago.")
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, **({"file": card["file"]} if "file" in card else {}))
 
     @app_commands.command(name="top", description="The highest level pets")
     @app_commands.guild_only()
