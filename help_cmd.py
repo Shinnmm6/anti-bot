@@ -194,6 +194,15 @@ PAGES: dict[str, str] = {
         "shared in the channel without spoiling the word.\n"
         "**/fortune today [public]**: a fortune, lucky number, color and luck level that stays the same all day. "
         "`/fortune luckiest` shows who is luckiest today."),
+    "Playground": (
+        "**/telephone start message first**: whisper a secret message to a member. They `read` it and `pass` it "
+        "on in their own words, and the bot garbles it a little every time. `end` reveals what it became.\n"
+        "**/minesweeper play [level]**: a real minesweeper board made of spoilers. Part of it is already open.\n"
+        "**/memory play**: 16 cards, find all 8 pairs in the fewest moves. Only you can flip your cards. `top`.\n"
+        "**/quickdraw start**: wait for the button to turn green and press it first. Pressing early knocks you "
+        "out. `top` shows the fastest times (network lag counts).\n"
+        "**/ship match first [second]**: a just-for-fun compatibility score with a ship name, a green flag and a "
+        "red flag. The same pair always gets the same result."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
