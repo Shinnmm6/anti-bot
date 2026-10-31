@@ -31,9 +31,11 @@ class MrBeastPot(commands.GroupCog, group_name="mrbeastpot", group_description="
     def make_embed(action: str, bans: int) -> discord.Embed:
         embed = discord.Embed(description=DESCRIPTION.format(action=ACTION_WORDS[action]),
                               color=discord.Color.from_rgb(37, 37, 43))
-        embed.set_footer(text=f"Bans: {bans}")
-        if os.path.exists(LOGO_PATH):
-            embed.set_thumbnail(url=f"attachment://{LOGO_NAME}")  # the logo, attached when the panel is posted
+        icon = f"attachment://{LOGO_NAME}" if os.path.exists(LOGO_PATH) else None  # attached when the panel is posted
+        embed.set_author(name="MrBeast Pot", icon_url=icon)
+        embed.set_footer(text=f"Bans: {bans}", icon_url=icon)
+        if icon:
+            embed.set_thumbnail(url=icon)
         return embed
 
     # ---------- setup ----------
@@ -71,7 +73,7 @@ class MrBeastPot(commands.GroupCog, group_name="mrbeastpot", group_description="
         await self.bot.db.commit()
         self.config[guild.id] = cfg
         await interaction.response.send_message(
-            f"The trap is set in {channel.mention}. Anyone without staff permissions who posts there gets a {act}. "
+            f"**MrBeast Pot** is set up in {channel.mention}. Anyone without staff permissions who posts there gets a {act}. "
             "Tip: let @everyone see the channel, and keep real members from needing it.", ephemeral=True)
         await self.bot.log(guild, "Mrbeastpot set up", f"{channel.mention}, action {act}, by {interaction.user}",
                            discord.Color.green())
