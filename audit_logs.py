@@ -76,7 +76,12 @@ class AuditLogs(commands.GroupCog, group_name="auditlog", group_description="Cho
 
         guild = entry.guild
         who = f"<@{entry.user_id}>"
-        whom = f"<@{entry.target.id}>" if entry.target is not None else "unknown"
+        try:
+            target = entry.target
+        except Exception:
+            target = None
+        target_id = getattr(target, "id", None)
+        whom = f"<@{target_id}>" if target_id is not None else "unknown"
         reason = entry.reason or "No reason given"
 
         if entry.action == A.kick:

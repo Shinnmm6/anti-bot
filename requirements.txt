@@ -5,3 +5,4 @@ Pillow
 PyNaCl
 yt-dlp
 imageio-ffmpeg
+davey

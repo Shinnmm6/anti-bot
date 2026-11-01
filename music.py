@@ -141,7 +141,7 @@ class Music(commands.Cog):
                 if vc is not None:
                     await vc.disconnect(force=True)
                 await channel.connect(self_deaf=True)
-            except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError):
+            except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError, RuntimeError):
                 pass  # try again in 30 seconds
 
     @reconnect.before_loop
@@ -171,8 +171,8 @@ class Music(commands.Cog):
                 await vc.move_to(channel)
             else:
                 await channel.connect(self_deaf=True)
-        except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError) as e:
-            return await interaction.followup.send(f"I couldn't join: {e}. (Voice needs the PyNaCl package installed.)",
+        except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError, RuntimeError) as e:
+            return await interaction.followup.send(f"I couldn't join: {e}. (Voice needs the PyNaCl and davey packages installed.)",
                                                    ephemeral=True)
         self.keep[guild.id] = channel.id
         await self.bot.db.execute("INSERT OR REPLACE INTO vc_247 (guild_id, channel_id) VALUES (?,?)", (guild.id, channel.id))
@@ -411,9 +411,9 @@ class Music(commands.Cog):
         if not (vc and vc.is_connected()):
             try:
                 await interaction.user.voice.channel.connect(self_deaf=True)
-            except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError) as e:
+            except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError, RuntimeError) as e:
                 return await interaction.followup.send(f"I couldn't join your voice channel: {e}. "
-                                                       "(Voice needs the PyNaCl package installed.)")
+                                                       "(Voice needs the PyNaCl and davey packages installed.)")
         try:
             tracks = await self.find_tracks(song, interaction.user.id)
         except Exception as e:
