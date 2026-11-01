@@ -224,6 +224,17 @@ PAGES: dict[str, str] = {
         "**/decide**: `pick options` (chooses for you), `8ball question`, `roll dice` (like 2d6 or d20+3) and `flip`.\n"
         "**/rate thing**: rates anything out of 10 with sub scores. The same thing always gets the same rating, and "
         "it's always friendly."),
+    "Music": (
+        "**/join [channel]**: I join your voice channel (or the one you pick) and **stay there 24/7**. I rejoin by "
+        "myself if I get disconnected or the bot restarts. `/leave` sends me away.\n"
+        "**/play song**: a title (`/play lofi hip hop`), a YouTube link (a playlist adds up to 25 songs) or a Spotify "
+        "link. If I'm not in a channel yet I join yours.\n"
+        "**/music**: `skip`, `pause`, `resume`, `stop` (clears the queue, I stay), `queue`, `nowplaying`, `volume`, "
+        "`loop` (off, song, queue) and `shuffle`. You must be in my voice channel to use them.\n\n"
+        "Spotify songs are looked up and played from YouTube (Spotify doesn't allow its audio to be streamed). A single "
+        "Spotify track link works as is. For Spotify albums and playlists, set `SPOTIFY_CLIENT_ID` and "
+        "`SPOTIFY_CLIENT_SECRET` (free, from developer.spotify.com). If YouTube blocks the host, set `YOUTUBE_COOKIES` "
+        "to the contents of a cookies.txt file. The bot needs Connect and Speak."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"

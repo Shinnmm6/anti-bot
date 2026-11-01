@@ -49,6 +49,7 @@ FILE_COMMANDS = {
     "playground": "/telephone, /minesweeper, /memory, /quickdraw, /ship",
     "couples": "/couple, /lovenote, /datenight, /couplequiz, /mindmeld",
     "bonanza": "/drops, /taboo, /superlative, /decide, /rate",
+    "music": "/join, /leave, /play, /music",
     "verification": "/verify",
 }
 
