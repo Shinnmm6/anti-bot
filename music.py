@@ -140,7 +140,7 @@ class Music(commands.Cog):
             try:
                 if vc is not None:
                     await vc.disconnect(force=True)
-                await channel.connect(self_deaf=True)
+                await channel.connect(self_deaf=False)
             except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError, RuntimeError):
                 pass  # try again in 30 seconds
 
@@ -170,7 +170,7 @@ class Music(commands.Cog):
             if vc and vc.is_connected():
                 await vc.move_to(channel)
             else:
-                await channel.connect(self_deaf=True)
+                await channel.connect(self_deaf=False)
         except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError, RuntimeError) as e:
             return await interaction.followup.send(f"I couldn't join: {e}. (Voice needs the PyNaCl and davey packages installed.)",
                                                    ephemeral=True)
@@ -410,7 +410,7 @@ class Music(commands.Cog):
         await interaction.response.defer()
         if not (vc and vc.is_connected()):
             try:
-                await interaction.user.voice.channel.connect(self_deaf=True)
+                await interaction.user.voice.channel.connect(self_deaf=False)
             except (discord.ClientException, discord.HTTPException, asyncio.TimeoutError, RuntimeError) as e:
                 return await interaction.followup.send(f"I couldn't join your voice channel: {e}. "
                                                        "(Voice needs the PyNaCl and davey packages installed.)")
