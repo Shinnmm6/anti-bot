@@ -130,10 +130,12 @@ class Security(commands.Cog):
                                   guild_only=True)
     gate = app_commands.Group(name="gate", description="Block brand new accounts from joining", guild_only=True)
     quarantine = app_commands.Group(name="quarantine", description="Isolate a suspicious member", guild_only=True)
+    raid = app_commands.Group(name="raid", description="Raid mode: stop new members from joining", guild_only=True)
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.gates: dict[int, dict] = {}
+        self.raids: dict[int, dict] = {}
 
     async def cog_load(self):
         db = self.bot.db
@@ -149,7 +151,12 @@ class Security(commands.Cog):
                          "reason TEXT, created_at INTEGER, PRIMARY KEY (guild_id, user_id))")
         await db.execute("CREATE TABLE IF NOT EXISTS quarantine_roles (guild_id INTEGER, user_id INTEGER, role_id INTEGER, "
                          "PRIMARY KEY (guild_id, user_id, role_id))")
+        await db.execute("CREATE TABLE IF NOT EXISTS raid_mode (guild_id INTEGER PRIMARY KEY, started_by INTEGER, "
+                         "started_at INTEGER, action TEXT, blocked INTEGER DEFAULT 0)")
         await db.commit()
+        async with db.execute("SELECT guild_id, started_by, started_at, action, blocked FROM raid_mode") as cur:
+            for gid, by, at, action, blocked in await cur.fetchall():
+                self.raids[gid] = {"by": by, "at": at, "action": action, "blocked": blocked}
         async with db.execute("SELECT guild_id, min_days, action FROM gate_config") as cur:
             for gid, days, action in await cur.fetchall():
                 self.gates[gid] = {"days": days, "action": action}
@@ -306,6 +313,78 @@ class Security(commands.Cog):
                                           f"I couldn't kick {member} ({age}d old). Check my Kick Members permission.",
                                           discord.Color.red())
         await self.bot.log(member.guild, "Young account joined", f"{member} ({member.id}) account is {age} day(s) old.")
+
+    # ------------------------------------------------------------------ raid mode
+
+    @raid.command(name="on", description="Raid mode ON: every new member who joins is removed until you turn it off")
+    @app_commands.describe(action="What to do with each new member (default: kick and tell them to try later)")
+    @app_commands.choices(action=[app_commands.Choice(name="Kick (they can rejoin later)", value="kick"),
+                                  app_commands.Choice(name="Ban", value="ban")])
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(kick_members=True, ban_members=True)
+    async def raid_on(self, interaction: discord.Interaction, action: app_commands.Choice[str] | None = None):
+        gid, act = interaction.guild_id, action.value if action else "kick"
+        now = int(time.time())
+        await self.bot.db.execute("INSERT INTO raid_mode (guild_id, started_by, started_at, action, blocked) VALUES (?,?,?,?,0) "
+                                  "ON CONFLICT(guild_id) DO UPDATE SET action=excluded.action",
+                                  (gid, interaction.user.id, now, act))
+        await self.bot.db.commit()
+        cur = self.raids.get(gid)
+        self.raids[gid] = {"by": cur["by"] if cur else interaction.user.id, "at": cur["at"] if cur else now,
+                           "action": act, "blocked": cur["blocked"] if cur else 0}
+        await interaction.response.send_message(
+            f"**Raid mode is ON.** Every new member who joins will be {'banned' if act == 'ban' else 'kicked'} "
+            "(bots are left alone). People already in the server are not affected. Use `/raid off` when it is over.")
+        await self.bot.log(interaction.guild, "Raid mode ON", f"Turned on by {interaction.user.mention} (action: {act}).",
+                           discord.Color.red())
+
+    @raid.command(name="off", description="Raid mode OFF: let new members join again")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def raid_off(self, interaction: discord.Interaction):
+        gid = interaction.guild_id
+        cur = self.raids.pop(gid, None)
+        await self.bot.db.execute("DELETE FROM raid_mode WHERE guild_id=?", (gid,))
+        await self.bot.db.commit()
+        if not cur:
+            return await interaction.response.send_message("Raid mode wasn't on.", ephemeral=True)
+        await interaction.response.send_message(f"**Raid mode is OFF.** New members can join again. "
+                                                f"It blocked **{cur['blocked']}** account(s) while it was on.")
+        await self.bot.log(interaction.guild, "Raid mode OFF",
+                           f"Turned off by {interaction.user.mention}. Blocked {cur['blocked']} account(s).",
+                           discord.Color.green())
+
+    @raid.command(name="status", description="Is raid mode on?")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def raid_status(self, interaction: discord.Interaction):
+        cur = self.raids.get(interaction.guild_id)
+        if not cur:
+            return await interaction.response.send_message("Raid mode is **off**.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Raid mode is **ON** (since <t:{cur['at']}:R>, by <@{cur['by']}>). Action: {cur['action']}. "
+            f"Blocked so far: {cur['blocked']}.", ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+    @commands.Cog.listener("on_member_join")
+    async def raid_block(self, member: discord.Member):
+        cfg = self.raids.get(member.guild.id)
+        if not cfg or member.bot:
+            return
+        try:
+            await member.send(f"**{member.guild.name}** is temporarily closed to new members. "
+                              "Please try joining again later.")
+        except discord.HTTPException:
+            pass
+        try:
+            if cfg["action"] == "ban":
+                await member.ban(reason="Raid mode", delete_message_seconds=0)
+            else:
+                await member.kick(reason="Raid mode")
+        except discord.HTTPException:
+            return await self.bot.log(member.guild, "Raid mode failed",
+                                      f"I couldn't remove {member} ({member.id}). Check my Kick/Ban permissions.",
+                                      discord.Color.red())
+        cfg["blocked"] += 1
+        await self.bot.db.execute("UPDATE raid_mode SET blocked=blocked+1 WHERE guild_id=?", (member.guild.id,))
+        await self.bot.db.commit()
 
     # ------------------------------------------------------------------ quarantine
 

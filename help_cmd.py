@@ -162,6 +162,8 @@ PAGES: dict[str, str] = {
         "**/quarantine release member** gives everything back. `list` shows who is quarantined.\n"
         "**/securityscan**: checks your server for risky permissions (everyone, admin bots, too many admins), low "
         "verification and missing 2FA, and tells you what to fix.\n"
+        "**/raid on|off|status**: raid mode. While ON, every new member who joins is kicked (or banned) and told to try "
+        "later. `/raid off` lets people in again and shows how many were blocked.\n"
         "**/raidclean minutes [action] [only_no_roles]**: after a raid, preview everyone who joined in the last few "
         "minutes and ban or kick them with one confirm button. Members with roles are skipped by default."),
     "Party games": (

@@ -42,7 +42,7 @@ FILE_COMMANDS = {
     "mrbeastpot": "/mrbeastpot",
     "fun": "/wyr, /pairup, /vibe, /duel, /birthday",
     "social": "/lfg, /secretsanta, /habit, /wordchain, /remind",
-    "security": "/lockdown, /gate, /quarantine, /securityscan, /raidclean",
+    "security": "/lockdown, /gate, /quarantine, /raid, /securityscan, /raidclean",
     "party": "/story, /potato, /riddle, /numberhunt, /truthdare",
     "arcade": "/trivia, /hangman, /scramble, /tierlist, /whosaid",
     "lounge": "/predict, /pet, /connect4, /wordle, /fortune",
