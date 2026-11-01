@@ -304,6 +304,8 @@ PAGES: dict[str, str] = {
         "- `lockdown` (default on): unverified people can only see the verify channel\n"
         "- `grant_existing` (default on): gives the role to current members (up to 250)\n"
         "- Members who don't verify within the timeout (default 15 min) are kicked; 5 wrong answers = kick\n"
+        "`/verify all`: give the verified role to every member who doesn't have it (asks you to confirm first)\n"
+        "`/verify user member`: verify one person by hand\n"
         "`/verify status`: show settings\n"
         "`/verify disable`: turn it off (restores @everyone View Channels if lockdown changed it)\n\n"
         "The bot's role must be above the member role and have View Channels itself."),

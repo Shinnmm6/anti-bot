@@ -1,3 +1,4 @@
+import asyncio
 import random
 import secrets
 from collections import defaultdict
@@ -366,6 +367,85 @@ class Verification(commands.GroupCog, group_name="verify"):
             f"**Kick if unverified after:** {timeout} minutes\n"
             f"**Lockdown:** {'on' if locked else 'off'}",
             ephemeral=True)
+
+    # ---------- verify people by hand ----------
+
+    @app_commands.command(name="all", description="Give the verified role to every member who doesn't have it yet")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True, manage_roles=True)
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def verify_all(self, interaction: discord.Interaction):
+        cfg = await self.get_config(interaction.guild_id)
+        role = interaction.guild.get_role(cfg[0]) if cfg else None
+        if role is None:
+            return await interaction.response.send_message("Verification isn't set up. Run `/verify setup` first.", ephemeral=True)
+        if role >= interaction.guild.me.top_role:
+            return await interaction.response.send_message(
+                f"I can't give {role.mention} because it is above my highest role. Move my role higher.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if not guild.chunked:
+            await guild.chunk()
+        todo = [m for m in guild.members if not m.bot and role not in m.roles]
+        if not todo:
+            return await interaction.followup.send("Everyone is already verified.", ephemeral=True)
+        view = VerifyAllConfirm(interaction.user.id)
+        await interaction.followup.send(f"This will give {role.mention} to **{len(todo)}** member(s). Continue?",
+                                        view=view, ephemeral=True)
+        await view.wait()
+        if not view.confirmed:
+            return
+        done = failed = 0
+        for m in todo:
+            if role in m.roles:
+                continue
+            try:
+                await m.add_roles(role, reason=f"/verify all by {interaction.user}")
+                done += 1
+            except discord.HTTPException:
+                failed += 1
+            await asyncio.sleep(0.4)  # stay well under Discord's rate limits
+        await interaction.followup.send(f"Done. Verified **{done}** member(s)" + (f", **{failed}** failed." if failed else "."),
+                                        ephemeral=True)
+        await self.bot.log(guild, "Verify all", f"{interaction.user.mention} verified {done} member(s) with /verify all"
+                           + (f" ({failed} failed)." if failed else "."), discord.Color.green())
+
+    @app_commands.command(name="user", description="Verify one member by hand")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_roles=True)
+    @app_commands.checks.bot_has_permissions(manage_roles=True)
+    async def verify_user(self, interaction: discord.Interaction, member: discord.Member):
+        cfg = await self.get_config(interaction.guild_id)
+        role = interaction.guild.get_role(cfg[0]) if cfg else None
+        if role is None:
+            return await interaction.response.send_message("Verification isn't set up. Run `/verify setup` first.", ephemeral=True)
+        try:
+            await member.add_roles(role, reason=f"/verify user by {interaction.user}")
+        except discord.HTTPException:
+            return await interaction.response.send_message("I couldn't give the role. Check that my role is above it.", ephemeral=True)
+        await interaction.response.send_message(f"Verified {member.mention}.", ephemeral=True,
+                                                allowed_mentions=discord.AllowedMentions.none())
+
+
+class VerifyAllConfirm(discord.ui.View):
+    def __init__(self, author_id: int):
+        super().__init__(timeout=60)
+        self.author_id = author_id
+        self.confirmed = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.author_id
+
+    @discord.ui.button(label="Verify everyone", style=discord.ButtonStyle.success)
+    async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        await interaction.response.edit_message(content="Working on it. This takes a little while for big servers...", view=None)
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="Cancelled.", view=None)
+        self.stop()
 
 
 async def setup(bot: commands.Bot):
