@@ -214,6 +214,16 @@ PAGES: dict[str, str] = {
         "Works for any two members, and partners earn love points.\n"
         "**/mindmeld start member**: both secretly type a word and try to match. Up to 8 rounds. `top` shows the "
         "pairs who think most alike."),
+    "Bonus fun": (
+        "**/drops**: staff `setup` a channel and loot crates fall as people chat. The first person to press Open keeps "
+        "the item (Common to Legendary). `bag [member]` shows a collection and `top` ranks collectors. `off` stops it.\n"
+        "**/taboo start**: you get a secret word and 4 forbidden words, and describe it in chat while others guess. "
+        "Say a forbidden word and your message is deleted and the round ends. `stop`, `top`.\n"
+        "**/superlative start category**: members vote for a member from a menu (not themselves). Results are secret "
+        "until `/superlative end message_id` announces the winner.\n"
+        "**/decide**: `pick options` (chooses for you), `8ball question`, `roll dice` (like 2d6 or d20+3) and `flip`.\n"
+        "**/rate thing**: rates anything out of 10 with sub scores. The same thing always gets the same rating, and "
+        "it's always friendly."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"

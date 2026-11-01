@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 MAX_COMMITS = 15
-DISPLAY_AUTHOR = "Shin"  # shown instead of the real Git author name
+DISPLAY_AUTHOR = "v0zv2"  # shown instead of the real Git author name
 # Public updates channel. If it is an Announcement channel, each update is also published
 # (crossposted) so every server following it receives it. Override with PUBLIC_CHANNEL_ID.
 DEFAULT_REPO_OWNER = "Shinnmm6"  # used by /changelogs when Railway doesn't provide repo info
@@ -48,6 +48,7 @@ FILE_COMMANDS = {
     "lounge": "/predict, /pet, /connect4, /wordle, /fortune",
     "playground": "/telephone, /minesweeper, /memory, /quickdraw, /ship",
     "couples": "/couple, /lovenote, /datenight, /couplequiz, /mindmeld",
+    "bonanza": "/drops, /taboo, /superlative, /decide, /rate",
     "verification": "/verify",
 }
 
