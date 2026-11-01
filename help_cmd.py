@@ -237,6 +237,13 @@ PAGES: dict[str, str] = {
         "Spotify track link works as is. For Spotify albums and playlists, set `SPOTIFY_CLIENT_ID` and "
         "`SPOTIFY_CLIENT_SECRET` (free, from developer.spotify.com). If YouTube blocks the host, set `YOUTUBE_COOKIES` "
         "to the contents of a cookies.txt file. The bot needs Connect and Speak."),
+    "Access control": (
+        "**/access** (server owner only) chooses who can use my commands, /help included.\n"
+        "**/access allow_role role** / **allow_user user**: add to the list. Once the list has anyone, only those "
+        "people, the owner and admins can use commands.\n"
+        "**/access remove_role** / **remove_user**: take someone off. **/access list**: see the list. "
+        "**/access off**: clear it so everyone can use commands again.\n"
+        "Commands that need permissions (like /ban) still need those permissions."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"

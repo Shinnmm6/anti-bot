@@ -53,7 +53,7 @@ class ModBot(commands.Bot):
         for ext in ("antinuke", "verification", "audit_logs", "antilink", "help_cmd", "server_profile",
                     "changelog", "shop", "modtools", "greetings", "wordfilter",
                     "partnership", "tickets", "leveling", "invites", "giveaway",
-                    "customrole", "community", "surprise", "mrbeastpot", "fun", "social", "security", "party", "arcade", "lounge", "playground", "couples", "bonanza", "music"):
+                    "customrole", "community", "surprise", "mrbeastpot", "fun", "social", "security", "party", "arcade", "lounge", "playground", "couples", "bonanza", "music", "access"):
             await self.load_extension(ext)
         await self.tree.sync()
 
@@ -180,7 +180,7 @@ async def purge(interaction: discord.Interaction, amount: app_commands.Range[int
 
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, (app_commands.MissingPermissions, app_commands.BotMissingPermissions)):
+    if isinstance(error, (app_commands.MissingPermissions, app_commands.BotMissingPermissions, app_commands.CheckFailure)):
         msg = str(error)
     else:
         msg = "Something went wrong."

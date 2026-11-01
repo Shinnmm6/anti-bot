@@ -50,6 +50,7 @@ FILE_COMMANDS = {
     "couples": "/couple, /lovenote, /datenight, /couplequiz, /mindmeld",
     "bonanza": "/drops, /taboo, /superlative, /decide, /rate",
     "music": "/join, /leave, /play, /music",
+    "access": "/access",
     "verification": "/verify",
 }
 
