@@ -246,6 +246,11 @@ PAGES: dict[str, str] = {
         "**/access remove_role** / **remove_user**: take someone off. **/access list**: see the list. "
         "**/access off**: clear it so everyone can use commands again.\n"
         "Commands that need permissions (like /ban) still need those permissions."),
+    "Premium": (
+        "**/premium**: anyone can run this to see what premium unlocks, the price, and how to get it (contact info "
+        "you set). It never DMs anyone; it only replies to the person who ran it.\n"
+        "**/premiumsetup perks price contact** (Manage Server): set the perks list, price and contact text shown by "
+        "`/premium`. Type `\\n` for a new line."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
