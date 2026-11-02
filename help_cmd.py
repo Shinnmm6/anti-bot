@@ -251,6 +251,16 @@ PAGES: dict[str, str] = {
         "you set). It never DMs anyone; it only replies to the person who ran it.\n"
         "**/premiumsetup perks price contact** (Manage Server): set the perks list, price and contact text shown by "
         "`/premium`. Type `\\n` for a new line."),
+    "Premium features": (
+        "Five extra commands for members with premium (granted by staff with `/premiumgrant member`, "
+        "removed with `/premiumrevoke`, listed with `/premiumlist`). Staff and the owner can always use them.\n\n"
+        "**/afk [reason]**: marks you AFK. If someone mentions you, I reply with your reason. Speaking again clears it.\n"
+        "**/snipe**: shows the last deleted message in the channel (up to 15 minutes old).\n"
+        "**/stealemoji emoji [name]**: paste a custom emoji from another server (or an image link + name) to add it "
+        "here. Needs Manage Expressions.\n"
+        "**/autoresponder add|remove|list**: I auto-reply when someone says a trigger word or phrase "
+        "(up to 15 per server).\n"
+        "**/sticky set|off**: keeps a message pinned to the bottom of a channel, reposting it as new messages come in."),
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"

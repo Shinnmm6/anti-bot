@@ -52,6 +52,7 @@ FILE_COMMANDS = {
     "music": "/join, /leave, /play, /music",
     "access": "/access",
     "premium": "/premium, /premiumsetup",
+    "premiumfeatures": "/afk, /snipe, /stealemoji, /autoresponder, /sticky",
     "verification": "/verify",
 }
 
