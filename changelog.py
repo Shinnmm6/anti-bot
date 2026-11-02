@@ -51,7 +51,7 @@ FILE_COMMANDS = {
     "bonanza": "/drops, /taboo, /superlative, /decide, /rate",
     "music": "/join, /leave, /play, /music",
     "access": "/access",
-    "premium": "/premium, /premiumsetup",
+    "premium": "/premium, /premiumadmin",
     "premiumfeatures": "/afk, /snipe, /stealemoji, /autoresponder, /sticky",
     "premiumextra": "/embed, /archive, /poll, /bio, /spotlight",
     "verification": "/verify",

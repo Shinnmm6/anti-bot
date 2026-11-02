@@ -13,6 +13,9 @@ _last_use: dict[int, float] = {}
 class Premium(commands.Cog):
     """/premium: members look up what premium unlocks and how to pay for it. No DMs are ever sent."""
 
+    premiumadmin = app_commands.Group(name="premiumadmin", description="Manage premium (server owner/staff)",
+                                      guild_only=True)
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
@@ -48,9 +51,8 @@ class Premium(commands.Cog):
         embed.set_footer(text=f"{interaction.guild.name} premium")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="premiumgrant", description="Give a member premium (after they've paid you)")
+    @premiumadmin.command(name="grant", description="Give a member premium (after they've paid you)")
     @app_commands.describe(member="The member to grant premium to")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     async def premiumgrant(self, interaction: discord.Interaction, member: discord.Member):
         await self.bot.db.execute(
@@ -63,9 +65,8 @@ class Premium(commands.Cog):
         await self.bot.log(interaction.guild, "Premium granted",
                            f"{member.mention} granted by {interaction.user.mention}", discord.Color.gold())
 
-    @app_commands.command(name="premiumrevoke", description="Take premium away from a member")
+    @premiumadmin.command(name="revoke", description="Take premium away from a member")
     @app_commands.describe(member="The member to remove premium from")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     async def premiumrevoke(self, interaction: discord.Interaction, member: discord.Member):
         await self.bot.db.execute("DELETE FROM premium_members WHERE guild_id=? AND user_id=?",
@@ -74,8 +75,7 @@ class Premium(commands.Cog):
         await interaction.response.send_message(f"Removed {member.mention}'s premium.", ephemeral=True,
                                                 allowed_mentions=discord.AllowedMentions.none())
 
-    @app_commands.command(name="premiumlist", description="See who has premium")
-    @app_commands.guild_only()
+    @premiumadmin.command(name="list", description="See who has premium")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def premiumlist(self, interaction: discord.Interaction):
         async with self.bot.db.execute("SELECT user_id FROM premium_members WHERE guild_id=?",
@@ -87,12 +87,11 @@ class Premium(commands.Cog):
         await interaction.response.send_message(f"**Premium members ({len(rows)}):**\n{text}", ephemeral=True,
                                                 allowed_mentions=discord.AllowedMentions.none())
 
-    @app_commands.command(name="premiumsetup", description="Set what /premium shows (server owner/staff)")
+    @premiumadmin.command(name="setup", description="Set what /premium shows (server owner/staff)")
     @app_commands.describe(
         perks="What premium unlocks, one line per perk (type \\n for a new line)",
         price="The price or price range to show",
         contact="How to pay or who to message (type \\n for a new line)")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     async def premiumsetup(self, interaction: discord.Interaction, perks: str, price: str, contact: str):
         perks, contact = perks.replace("\\n", "\n").strip(), contact.replace("\\n", "\n").strip()

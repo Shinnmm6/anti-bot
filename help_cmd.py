@@ -249,11 +249,11 @@ PAGES: dict[str, str] = {
     "Premium": (
         "**/premium**: anyone can run this to see what premium unlocks, the price, and how to get it (contact info "
         "you set). It never DMs anyone; it only replies to the person who ran it.\n"
-        "**/premiumsetup perks price contact** (Manage Server): set the perks list, price and contact text shown by "
+        "**/premiumadmin setup perks price contact** (Manage Server): set the perks list, price and contact text shown "
         "`/premium`. Type `\\n` for a new line."),
     "Premium features": (
-        "Five extra commands for members with premium (granted by staff with `/premiumgrant member`, "
-        "removed with `/premiumrevoke`, listed with `/premiumlist`). Staff and the owner can always use them.\n\n"
+        "Five extra commands for members with premium (granted by staff with `/premiumadmin grant member`, "
+        "removed with `/premiumadmin revoke`, listed with `/premiumadmin list`). Staff and the owner can always use them.\n\n"
         "**/afk [reason]**: marks you AFK. If someone mentions you, I reply with your reason. Speaking again clears it.\n"
         "**/snipe**: shows the last deleted message in the channel (up to 15 minutes old).\n"
         "**/stealemoji emoji [name]**: paste a custom emoji from another server (or an image link + name) to add it "
