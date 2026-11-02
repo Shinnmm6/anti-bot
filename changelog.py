@@ -53,6 +53,7 @@ FILE_COMMANDS = {
     "access": "/access",
     "premium": "/premium, /premiumsetup",
     "premiumfeatures": "/afk, /snipe, /stealemoji, /autoresponder, /sticky",
+    "premiumextra": "/embed, /archive, /poll, /bio, /spotlight",
     "verification": "/verify",
 }
 

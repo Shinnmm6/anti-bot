@@ -260,7 +260,14 @@ PAGES: dict[str, str] = {
         "here. Needs Manage Expressions.\n"
         "**/autoresponder add|remove|list**: I auto-reply when someone says a trigger word or phrase "
         "(up to 15 per server).\n"
-        "**/sticky set|off**: keeps a message pinned to the bottom of a channel, reposting it as new messages come in."),
+        "**/sticky set|off**: keeps a message pinned to the bottom of a channel, reposting it as new messages come in.\n"
+        "**/embed description [channel] [title] [color] [image_url] [footer]**: post a custom embed as the bot.\n"
+        "**/archive [limit]**: export up to 500 recent messages in the channel to a text file.\n"
+        "**/poll question options [minutes]**: a reaction poll with up to 10 options; optionally auto-announces "
+        "the winner.\n"
+        "**/bio set|show**: a short personal bio members can show each other.\n"
+        "**/spotlight message_link channel**: repost a great message into a highlights channel."),
+
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
         "never say what the prize is or what the bad luck is.\n\n"
