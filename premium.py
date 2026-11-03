@@ -124,6 +124,25 @@ async def has_premium(bot: commands.Bot, guild: discord.Guild, member: discord.M
         return bool(await cur.fetchone())
 
 
+async def has_premium_anywhere(bot: commands.Bot, user_id: int) -> bool:
+    """True if this user has premium in ANY server the bot is in, or is a bot owner. Used for perks (like
+    /custom-profile) that are meant to follow the member across every mutual server rather than just one."""
+    if user_id in bot.owner_ids:
+        return True
+    async with bot.db.execute("SELECT 1 FROM premium_members WHERE user_id=? LIMIT 1", (user_id,)) as cur:
+        return bool(await cur.fetchone())
+
+
+def premium_anywhere_only():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if await has_premium_anywhere(interaction.client, interaction.user.id):
+            return True
+        raise app_commands.CheckFailure(
+            "This is a premium feature. Ask any server where I'm a member to run `/premiumadmin grant` on you, "
+            "then it works everywhere I am.")
+    return app_commands.check(predicate)
+
+
 def premium_only():
     async def predicate(interaction: discord.Interaction) -> bool:
         if not isinstance(interaction.user, discord.Member):

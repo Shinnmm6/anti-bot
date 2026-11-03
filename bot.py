@@ -55,7 +55,7 @@ class ModBot(commands.Bot):
         for ext in ("antinuke", "verification", "audit_logs", "antilink", "help_cmd", "server_profile",
                     "changelog", "shop", "modtools", "greetings", "wordfilter",
                     "partnership", "tickets", "leveling", "invites", "giveaway",
-                    "customrole", "community", "surprise", "mrbeastpot", "fun", "social", "security", "party", "arcade", "lounge", "playground", "couples", "bonanza", "music", "access", "premium", "premiumfeatures", "premiumextra"):
+                    "customrole", "community", "surprise", "mrbeastpot", "fun", "social", "security", "party", "arcade", "lounge", "playground", "couples", "bonanza", "music", "access", "premium", "premiumfeatures", "premiumextra", "customprofile"):
             await self.load_extension(ext)
         await self.tree.sync()
 

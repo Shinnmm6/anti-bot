@@ -54,6 +54,7 @@ FILE_COMMANDS = {
     "premium": "/premium, /premiumadmin",
     "premiumfeatures": "/premiumutil (afk, snipe, stealemoji), /autoresponder, /sticky",
     "premiumextra": "/premiumposts (embed, archive, poll, spotlight), /bio",
+    "customprofile": "/custom-profile (set, clear, show)",
     "verification": "/verify",
 }
 

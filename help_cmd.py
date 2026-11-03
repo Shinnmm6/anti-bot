@@ -268,7 +268,16 @@ PAGES: dict[str, str] = {
         "**/premiumposts poll question options [minutes]**: a reaction poll with up to 10 options; optionally auto-announces "
         "the winner.\n"
         "**/bio set|show**: a short personal bio members can show each other.\n"
-        "**/premiumposts spotlight message_link channel**: repost a great message into a highlights channel."),
+        "**/premiumposts spotlight message_link channel**: repost a great message into a highlights channel.\n\n"
+        "**/custom-profile set [nickname] [title] [color] [bio]**: set a nickname I apply in every server "
+        "I share with you (not just this one), plus a title, color and bio shown on your profile card. Granted "
+        "with premium in any ONE server, it works everywhere I'm a member -- and I reapply the nickname "
+        "automatically if you join a new mutual server later.\n"
+        "**/custom-profile clear**: clear all of it and reset your nickname everywhere.\n"
+        "**/custom-profile show [member]**: view a custom profile card.\n"
+        "I only change a nickname where I have Manage Nicknames and my role is above yours; I skip the server "
+        "owner, who Discord never lets a bot rename."),
+
 
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
