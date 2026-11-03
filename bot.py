@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.environ["DISCORD_TOKEN"]
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
+# Bot owners: bypass /access restrictions everywhere and always count as premium (every server).
+BOT_OWNER_IDS = {1181235979286237264, 1044480568533979156}
 DB_PATH = os.getenv("DB_PATH", "mod.db")  # on Railway, point this at a mounted volume, e.g. /data/mod.db
 
 # ---- Tunables ----
@@ -34,7 +36,7 @@ class ModBot(commands.Bot):
     db: aiosqlite.Connection
 
     def __init__(self):
-        super().__init__(command_prefix=commands.when_mentioned, intents=intents)
+        super().__init__(command_prefix=commands.when_mentioned, intents=intents, owner_ids=BOT_OWNER_IDS)
         self.msg_times: dict[int, deque] = defaultdict(deque)
         self.join_times: deque = deque()
         self.raid_until = 0.0

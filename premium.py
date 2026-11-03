@@ -10,6 +10,16 @@ COOLDOWN_SECONDS = 10
 _last_use: dict[int, float] = {}
 
 
+def manage_or_bot_owner():
+    """Like has_permissions(manage_guild=True), but bot owners (set in bot.py) always pass too."""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        m = interaction.user
+        if isinstance(m, discord.Member) and (m.id in interaction.client.owner_ids or m.guild_permissions.manage_guild):
+            return True
+        raise app_commands.MissingPermissions(["manage_guild"])
+    return app_commands.check(predicate)
+
+
 class Premium(commands.Cog):
     """/premium: members look up what premium unlocks and how to pay for it. No DMs are ever sent."""
 
@@ -53,7 +63,7 @@ class Premium(commands.Cog):
 
     @premiumadmin.command(name="grant", description="Give a member premium (after they've paid you)")
     @app_commands.describe(member="The member to grant premium to")
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @manage_or_bot_owner()
     async def premiumgrant(self, interaction: discord.Interaction, member: discord.Member):
         await self.bot.db.execute(
             "INSERT OR REPLACE INTO premium_members (guild_id, user_id, granted_by, granted_at) VALUES (?,?,?,?)",
@@ -67,7 +77,7 @@ class Premium(commands.Cog):
 
     @premiumadmin.command(name="revoke", description="Take premium away from a member")
     @app_commands.describe(member="The member to remove premium from")
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @manage_or_bot_owner()
     async def premiumrevoke(self, interaction: discord.Interaction, member: discord.Member):
         await self.bot.db.execute("DELETE FROM premium_members WHERE guild_id=? AND user_id=?",
                                   (interaction.guild_id, member.id))
@@ -76,7 +86,7 @@ class Premium(commands.Cog):
                                                 allowed_mentions=discord.AllowedMentions.none())
 
     @premiumadmin.command(name="list", description="See who has premium")
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @manage_or_bot_owner()
     async def premiumlist(self, interaction: discord.Interaction):
         async with self.bot.db.execute("SELECT user_id FROM premium_members WHERE guild_id=?",
                                        (interaction.guild_id,)) as cur:
@@ -92,7 +102,7 @@ class Premium(commands.Cog):
         perks="What premium unlocks, one line per perk (type \\n for a new line)",
         price="The price or price range to show",
         contact="How to pay or who to message (type \\n for a new line)")
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @manage_or_bot_owner()
     async def premiumsetup(self, interaction: discord.Interaction, perks: str, price: str, contact: str):
         perks, contact = perks.replace("\\n", "\n").strip(), contact.replace("\\n", "\n").strip()
         if len(perks) > 1000 or len(price) > 200 or len(contact) > 500:
@@ -107,7 +117,7 @@ class Premium(commands.Cog):
 
 
 async def has_premium(bot: commands.Bot, guild: discord.Guild, member: discord.Member) -> bool:
-    if member.id == guild.owner_id or member.guild_permissions.manage_guild:
+    if member.id in bot.owner_ids or member.id == guild.owner_id or member.guild_permissions.manage_guild:
         return True
     async with bot.db.execute("SELECT 1 FROM premium_members WHERE guild_id=? AND user_id=?",
                               (guild.id, member.id)) as cur:

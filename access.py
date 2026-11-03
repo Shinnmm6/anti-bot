@@ -4,8 +4,11 @@ from discord.ext import commands
 
 
 def is_allowed(owner_id: int, is_admin: bool, user_id: int, role_ids: list[int],
-               allowed_users: set[int], allowed_roles: set[int]) -> bool:
-    """With an empty list everyone may use commands. Otherwise only the owner, admins and listed people/roles."""
+               allowed_users: set[int], allowed_roles: set[int], is_bot_owner: bool = False) -> bool:
+    """With an empty list everyone may use commands. Otherwise only the server owner, admins, bot owners and
+    listed people/roles."""
+    if is_bot_owner:
+        return True
     if not allowed_users and not allowed_roles:
         return True
     if user_id == owner_id or is_admin:
@@ -46,13 +49,14 @@ class Access(commands.Cog):
             return True
         m = interaction.user
         ok = is_allowed(guild.owner_id, m.guild_permissions.administrator, m.id, [r.id for r in m.roles],
-                        self.users.get(guild.id, set()), self.roles.get(guild.id, set()))
+                        self.users.get(guild.id, set()), self.roles.get(guild.id, set()),
+                        is_bot_owner=m.id in self.bot.owner_ids)
         if not ok:
             raise app_commands.CheckFailure("The server owner has limited who can use my commands, and you're not on the list.")
         return True
 
     async def _owner_only(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != interaction.guild.owner_id:
+        if interaction.user.id != interaction.guild.owner_id and interaction.user.id not in self.bot.owner_ids:
             await interaction.response.send_message("Only the server owner can change this.", ephemeral=True)
             return False
         return True
