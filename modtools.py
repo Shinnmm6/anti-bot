@@ -6,17 +6,18 @@ from discord.ext import commands
 
 
 class ModTools(commands.Cog):
-    """Extra moderation tools: /unban, /clearwarnings, /slowmode, /lock, /unlock, /userinfo."""
+    """Extra moderation tools, grouped under /modtools: unban, clearwarnings, slowmode, lock, unlock, userinfo."""
+
+    modtools = app_commands.Group(name="modtools", description="Extra moderation tools", guild_only=True)
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     # ---------- /unban ----------
 
-    @app_commands.command(name="unban", description="Unban a user by their ID")
+    @modtools.command(name="unban", description="Unban a user by their ID")
     @app_commands.describe(user_id="The user's ID (right-click them with Developer Mode on, or copy it from the ban list)",
                            reason="Why they are being unbanned")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.checks.bot_has_permissions(ban_members=True)
     async def unban(self, interaction: discord.Interaction, user_id: str, reason: str = "No reason given"):
@@ -35,8 +36,7 @@ class ModTools(commands.Cog):
 
     # ---------- /clearwarnings ----------
 
-    @app_commands.command(name="clearwarnings", description="Remove all warnings from a user")
-    @app_commands.guild_only()
+    @modtools.command(name="clearwarnings", description="Remove all warnings from a user")
     @app_commands.checks.has_permissions(moderate_members=True)
     async def clearwarnings(self, interaction: discord.Interaction, user: discord.User):
         cur = await self.bot.db.execute("DELETE FROM warnings WHERE guild_id=? AND user_id=?",
@@ -52,10 +52,9 @@ class ModTools(commands.Cog):
 
     # ---------- /slowmode ----------
 
-    @app_commands.command(name="slowmode", description="Set a channel's slowmode (0 turns it off)")
+    @modtools.command(name="slowmode", description="Set a channel's slowmode (0 turns it off)")
     @app_commands.describe(seconds="Seconds between messages per person, 0 to 21600",
                            channel="Channel to change (defaults to this one)")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.checks.bot_has_permissions(manage_channels=True)
     async def slowmode(self, interaction: discord.Interaction, seconds: app_commands.Range[int, 0, 21600],
@@ -89,17 +88,15 @@ class ModTools(commands.Cog):
                            f"{channel.mention} by {interaction.user}",
                            discord.Color.red() if locked else discord.Color.green())
 
-    @app_commands.command(name="lock", description="Stop @everyone from sending messages in a channel")
+    @modtools.command(name="lock", description="Stop @everyone from sending messages in a channel")
     @app_commands.describe(channel="Channel to lock (defaults to this one)")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.checks.bot_has_permissions(manage_channels=True)
     async def lock(self, interaction: discord.Interaction, channel: discord.TextChannel | None = None):
         await self._set_locked(interaction, channel, True)
 
-    @app_commands.command(name="unlock", description="Let @everyone send messages in a channel again")
+    @modtools.command(name="unlock", description="Let @everyone send messages in a channel again")
     @app_commands.describe(channel="Channel to unlock (defaults to this one)")
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.checks.bot_has_permissions(manage_channels=True)
     async def unlock(self, interaction: discord.Interaction, channel: discord.TextChannel | None = None):
@@ -107,9 +104,8 @@ class ModTools(commands.Cog):
 
     # ---------- /userinfo ----------
 
-    @app_commands.command(name="userinfo", description="Show info about a member")
+    @modtools.command(name="userinfo", description="Show info about a member")
     @app_commands.describe(member="Who to look up (defaults to you)")
-    @app_commands.guild_only()
     async def userinfo(self, interaction: discord.Interaction, member: discord.Member | None = None):
         member = member or interaction.user
         roles = [r.mention for r in reversed(member.roles) if not r.is_default()]

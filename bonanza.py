@@ -514,6 +514,17 @@ class Decide(commands.GroupCog, group_name="decide", group_description="Let luck
         await asyncio.sleep(1)
         await interaction.edit_original_response(content=f"It's **{random.choice(['heads', 'tails'])}**!")
 
+    @app_commands.command(name="rate", description="I rate anything out of 10 (always the same rating for the same thing)")
+    @app_commands.describe(thing="Anything: a food, a game, a song, an idea...")
+    @app_commands.guild_only()
+    async def rate(self, interaction: discord.Interaction, thing: app_commands.Range[str, 2, 100]):
+        r = rate_thing(thing)
+        embed = discord.Embed(title=f"Rating: {thing}", description=f"**{r['overall']}/10**\n{r['review']}",
+                              color=discord.Color.gold())
+        for cat, score in r["subs"]:
+            embed.add_field(name=cat.title(), value=f"{score}/10")
+        await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+
 
 # =====================================================================
 # /rate : the bot rates anything
@@ -539,22 +550,6 @@ def rate_thing(thing: str) -> dict:
             "subs": [(c, rng.randint(max(3, overall - 3), 10)) for c in cats]}
 
 
-class Rate(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-
-    @app_commands.command(name="rate", description="I rate anything out of 10 (always the same rating for the same thing)")
-    @app_commands.describe(thing="Anything: a food, a game, a song, an idea...")
-    @app_commands.guild_only()
-    async def rate(self, interaction: discord.Interaction, thing: app_commands.Range[str, 2, 100]):
-        r = rate_thing(thing)
-        embed = discord.Embed(title=f"Rating: {thing}", description=f"**{r['overall']}/10**\n{r['review']}",
-                              color=discord.Color.gold())
-        for cat, score in r["subs"]:
-            embed.add_field(name=cat.title(), value=f"{score}/10")
-        await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-
-
 async def setup(bot: commands.Bot):
-    for cog in (Drops, Taboo, Superlative, Decide, Rate):
+    for cog in (Drops, Taboo, Superlative, Decide):
         await bot.add_cog(cog(bot))

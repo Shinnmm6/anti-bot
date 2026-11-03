@@ -43,8 +43,10 @@ def parse_message_link(text: str) -> tuple[int, int, int] | None:
 
 
 class PremiumExtra(commands.Cog):
-    """Five more premium commands: embed, archive, poll, bio and spotlight."""
+    """Five more premium commands, grouped under /premiumposts and /bio: embed, archive, poll, bio and spotlight."""
 
+    premiumposts = app_commands.Group(name="premiumposts", description="Post things as the bot (premium)",
+                                      guild_only=True)
     bio = app_commands.Group(name="bio", description="A short personal bio shown to others (premium)", guild_only=True)
 
     def __init__(self, bot: commands.Bot):
@@ -57,12 +59,11 @@ class PremiumExtra(commands.Cog):
 
     # ------------------------------------------------------------------ embed
 
-    @app_commands.command(name="embed", description="Post a custom embed as the bot (premium)")
+    @premiumposts.command(name="embed", description="Post a custom embed as the bot (premium)")
     @app_commands.describe(description="The embed's text (type \\n for a new line)",
                            channel="Where to post it (default: here)", title="Optional title",
                            color="Hex like ffcc00, a color name like gold, or random",
                            image_url="A direct image link to show", footer="Optional small text at the bottom")
-    @app_commands.guild_only()
     @premium_only()
     async def embed_cmd(self, interaction: discord.Interaction, description: app_commands.Range[str, 1, 4000],
                         channel: discord.TextChannel | None = None, title: app_commands.Range[str, 1, 256] | None = None,
@@ -97,9 +98,8 @@ class PremiumExtra(commands.Cog):
 
     # ------------------------------------------------------------------ archive
 
-    @app_commands.command(name="archive", description="Export recent messages in this channel to a text file (premium)")
+    @premiumposts.command(name="archive", description="Export recent messages in this channel to a text file (premium)")
     @app_commands.describe(limit="How many recent messages to include (max 500)")
-    @app_commands.guild_only()
     @premium_only()
     @app_commands.checks.bot_has_permissions(read_message_history=True)
     async def archive(self, interaction: discord.Interaction, limit: app_commands.Range[int, 1, 500] = 100):
@@ -117,10 +117,9 @@ class PremiumExtra(commands.Cog):
 
     # ------------------------------------------------------------------ poll
 
-    @app_commands.command(name="poll", description="Start a poll with up to 10 options (premium)")
+    @premiumposts.command(name="poll", description="Start a poll with up to 10 options (premium)")
     @app_commands.describe(question="The poll question", options="Separate options with commas (2 to 10)",
                            minutes="Auto-announce the winner after this many minutes (optional)")
-    @app_commands.guild_only()
     @premium_only()
     @app_commands.checks.bot_has_permissions(add_reactions=True, embed_links=True)
     async def poll(self, interaction: discord.Interaction, question: app_commands.Range[str, 1, 256], options: str,
@@ -191,10 +190,9 @@ class PremiumExtra(commands.Cog):
 
     # ------------------------------------------------------------------ spotlight
 
-    @app_commands.command(name="spotlight", description="Repost a great message into a highlights channel (premium)")
+    @premiumposts.command(name="spotlight", description="Repost a great message into a highlights channel (premium)")
     @app_commands.describe(message_link="Right-click the message → Copy Message Link",
                            channel="Which channel to post the spotlight in")
-    @app_commands.guild_only()
     @premium_only()
     async def spotlight(self, interaction: discord.Interaction, message_link: str, channel: discord.TextChannel):
         parsed = parse_message_link(message_link)

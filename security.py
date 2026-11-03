@@ -476,8 +476,7 @@ class Security(commands.Cog):
 
     # ------------------------------------------------------------------ security scan
 
-    @app_commands.command(name="securityscan", description="Check your server for risky permissions and settings")
-    @app_commands.guild_only()
+    @raid.command(name="scan", description="Check your server for risky permissions and settings")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def securityscan(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -520,11 +519,10 @@ class Security(commands.Cog):
 
     # ------------------------------------------------------------------ raid cleanup
 
-    @app_commands.command(name="raidclean", description="Preview, then remove everyone who joined in the last few minutes")
+    @raid.command(name="clean", description="Preview, then remove everyone who joined in the last few minutes")
     @app_commands.describe(minutes="How far back to look", action="Ban (default) or kick",
                            only_no_roles="Only members with no roles, so verified members are safe (default yes)")
     @app_commands.choices(action=[app_commands.Choice(name="Ban", value="ban"), app_commands.Choice(name="Kick", value="kick")])
-    @app_commands.guild_only()
     @app_commands.checks.has_permissions(ban_members=True, kick_members=True)
     @app_commands.checks.bot_has_permissions(ban_members=True, kick_members=True)
     async def raidclean(self, interaction: discord.Interaction, minutes: app_commands.Range[int, 1, 180],

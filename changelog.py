@@ -20,7 +20,7 @@ GITHUB_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 # Commit messages like "Update bot.py" are shown with the slash commands that file provides.
 FILE_COMMANDS = {
-    "bot": "/kick /ban /timeout /warn /warnings /purge",
+    "bot": "/mod (kick, ban, timeout, warn, warnings, purge)",
     "antilink": "/antilink",
     "antinuke": "/antinuke",
     "audit_logs": "/auditlog",
@@ -28,7 +28,7 @@ FILE_COMMANDS = {
     "help_cmd": "/help",
     "server_profile": "/server",
     "shop": "/buy",
-    "modtools": "/unban /clearwarnings /slowmode /lock /unlock /userinfo",
+    "modtools": "/modtools (unban, clearwarnings, slowmode, lock, unlock, userinfo)",
     "greetings": "/welcome /bye /booster",
     "wordfilter": "/filter",
     "partnership": "/partnership",
@@ -42,7 +42,7 @@ FILE_COMMANDS = {
     "mrbeastpot": "/mrbeastpot",
     "fun": "/wyr, /pairup, /vibe, /duel, /birthday",
     "social": "/lfg, /secretsanta, /habit, /wordchain, /remind",
-    "security": "/lockdown, /gate, /quarantine, /raid, /securityscan, /raidclean",
+    "security": "/lockdown, /gate, /quarantine, /raid (incl. scan, clean)",
     "party": "/story, /potato, /riddle, /numberhunt, /truthdare",
     "arcade": "/trivia, /hangman, /scramble, /tierlist, /whosaid",
     "lounge": "/predict, /pet, /connect4, /wordle, /fortune",
@@ -52,8 +52,8 @@ FILE_COMMANDS = {
     "music": "/join, /leave, /play, /music",
     "access": "/access",
     "premium": "/premium, /premiumadmin",
-    "premiumfeatures": "/afk, /snipe, /stealemoji, /autoresponder, /sticky",
-    "premiumextra": "/embed, /archive, /poll, /bio, /spotlight",
+    "premiumfeatures": "/premiumutil (afk, snipe, stealemoji), /autoresponder, /sticky",
+    "premiumextra": "/premiumposts (embed, archive, poll, spotlight), /bio",
     "verification": "/verify",
 }
 

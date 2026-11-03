@@ -30,6 +30,8 @@ def parse_emoji(text: str) -> tuple[bool, str, int] | None:
 class PremiumFeatures(commands.Cog):
     """Premium-only commands: AFK, snipe, steal-emoji, autoresponders and sticky messages."""
 
+    premiumutil = app_commands.Group(name="premiumutil", description="AFK, snipe and steal-emoji (premium)",
+                                     guild_only=True)
     autoresponder = app_commands.Group(name="autoresponder", description="Auto-reply to trigger words (premium)",
                                        guild_only=True)
     sticky = app_commands.Group(name="sticky", description="Keep a message pinned to the bottom of a channel (premium)",
@@ -63,7 +65,7 @@ class PremiumFeatures(commands.Cog):
 
     # ------------------------------------------------------------------ AFK
 
-    @app_commands.command(name="afk", description="Mark yourself AFK; I'll reply for you when someone mentions you (premium)")
+    @premiumutil.command(name="afk", description="Mark yourself AFK; I'll reply for you when someone mentions you (premium)")
     @app_commands.describe(reason="What to show people who mention you (optional)")
     @premium_only()
     async def afk_cmd(self, interaction: discord.Interaction, reason: app_commands.Range[str, 0, 200] = ""):
@@ -109,7 +111,7 @@ class PremiumFeatures(commands.Cog):
         self.snipes[message.channel.id] = {"author": message.author, "content": message.content or "*(no text — an embed, image or sticker)*",
                                            "at": time.time()}
 
-    @app_commands.command(name="snipe", description="Show the last deleted message in this channel (premium)")
+    @premiumutil.command(name="snipe", description="Show the last deleted message in this channel (premium)")
     @premium_only()
     async def snipe(self, interaction: discord.Interaction):
         info = self.snipes.get(interaction.channel_id)
@@ -123,10 +125,9 @@ class PremiumFeatures(commands.Cog):
 
     # ------------------------------------------------------------------ steal an emoji
 
-    @app_commands.command(name="stealemoji", description="Add a custom emoji from another server to this one (premium)")
+    @premiumutil.command(name="stealemoji", description="Add a custom emoji from another server to this one (premium)")
     @app_commands.describe(emoji="A custom emoji like <:name:123> (paste it, don't type its name)",
                            name="Name to give it here (only needed for a raw image link)")
-    @app_commands.guild_only()
     @premium_only()
     @app_commands.checks.bot_has_permissions(manage_emojis=True)
     async def stealemoji(self, interaction: discord.Interaction, emoji: str, name: app_commands.Range[str, 2, 32] | None = None):

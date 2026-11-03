@@ -87,9 +87,13 @@ def hierarchy_error(interaction: discord.Interaction, target: discord.Member) ->
 
 
 # ---------------- Slash commands ----------------
+# Grouped under /mod to use one slot of Discord's 100-command cap instead of six.
 
-@bot.tree.command(description="Kick a member")
-@app_commands.guild_only()
+mod = app_commands.Group(name="mod", description="Moderation commands", guild_only=True)
+bot.tree.add_command(mod)
+
+
+@mod.command(name="kick", description="Kick a member")
 @app_commands.checks.has_permissions(kick_members=True)
 @app_commands.checks.bot_has_permissions(kick_members=True)
 async def kick(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason given"):
@@ -100,8 +104,7 @@ async def kick(interaction: discord.Interaction, member: discord.Member, reason:
     await bot.log(interaction.guild, "Kick", f"{member} kicked by {interaction.user}\n{reason}")
 
 
-@bot.tree.command(description="Ban a member")
-@app_commands.guild_only()
+@mod.command(name="ban", description="Ban a member")
 @app_commands.checks.has_permissions(ban_members=True)
 @app_commands.checks.bot_has_permissions(ban_members=True)
 async def ban(interaction: discord.Interaction, member: discord.Member, reason: str = "No reason given"):
@@ -112,8 +115,7 @@ async def ban(interaction: discord.Interaction, member: discord.Member, reason: 
     await bot.log(interaction.guild, "Ban", f"{member} banned by {interaction.user}\n{reason}", discord.Color.red())
 
 
-@bot.tree.command(description="Timeout a member (minutes)")
-@app_commands.guild_only()
+@mod.command(name="timeout", description="Timeout a member (minutes)")
 @app_commands.checks.has_permissions(moderate_members=True)
 @app_commands.checks.bot_has_permissions(moderate_members=True)
 async def timeout(interaction: discord.Interaction, member: discord.Member,
@@ -125,8 +127,7 @@ async def timeout(interaction: discord.Interaction, member: discord.Member,
     await bot.log(interaction.guild, "Timeout", f"{member} for {minutes}m by {interaction.user}\n{reason}")
 
 
-@bot.tree.command(description="Warn a member")
-@app_commands.guild_only()
+@mod.command(name="warn", description="Warn a member")
 @app_commands.checks.has_permissions(moderate_members=True)
 async def warn(interaction: discord.Interaction, member: discord.Member, reason: str):
     if err := hierarchy_error(interaction, member):
@@ -151,8 +152,7 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
     await bot.log(interaction.guild, "Warn", f"{member} warned by {interaction.user}\n{reason}")
 
 
-@bot.tree.command(description="List a member's warnings")
-@app_commands.guild_only()
+@mod.command(name="warnings", description="List a member's warnings")
 @app_commands.checks.has_permissions(moderate_members=True)
 async def warnings(interaction: discord.Interaction, member: discord.Member):
     async with bot.db.execute(
@@ -166,8 +166,7 @@ async def warnings(interaction: discord.Interaction, member: discord.Member):
     await interaction.response.send_message(f"**Warnings for {member}**\n{text}", ephemeral=True)
 
 
-@bot.tree.command(description="Delete recent messages")
-@app_commands.guild_only()
+@mod.command(name="purge", description="Delete recent messages")
 @app_commands.checks.has_permissions(manage_messages=True)
 @app_commands.checks.bot_has_permissions(manage_messages=True)
 async def purge(interaction: discord.Interaction, amount: app_commands.Range[int, 1, 100]):

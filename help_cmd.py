@@ -15,21 +15,21 @@ PAGES: dict[str, str] = {
         "Use the dropdown below to read about each feature. Only people with *Manage Server* "
         "(and the owner) can open this help."),
     "Moderation commands": (
-        "`/kick member reason`: kick (needs Kick Members)\n"
-        "`/ban member reason`: ban (needs Ban Members)\n"
-        "`/timeout member minutes reason`: timeout up to 28 days (needs Moderate Members)\n"
-        "`/warn member reason`: add a warning. 3 warnings = automatic 1-hour timeout\n"
-        "`/warnings member`: list a member's last 10 warnings\n"
-        "`/purge amount`: delete 1 to 100 recent messages (needs Manage Messages)\n\n"
+        "`/mod kick member reason`: kick (needs Kick Members)\n"
+        "`/mod ban member reason`: ban (needs Ban Members)\n"
+        "`/mod timeout member minutes reason`: timeout up to 28 days (needs Moderate Members)\n"
+        "`/mod warn member reason`: add a warning. 3 warnings = automatic 1-hour timeout\n"
+        "`/mod warnings member`: list a member's last 10 warnings\n"
+        "`/mod purge amount`: delete 1 to 100 recent messages (needs Manage Messages)\n\n"
         "The bot and the moderator must both outrank the target. Nobody can act on the owner or on themselves."),
     "Extra mod tools": (
-        "`/unban user_id reason`: unban someone by ID (needs Ban Members)\n"
-        "`/clearwarnings user`: remove all of a user's warnings (needs Moderate Members)\n"
-        "`/slowmode seconds [channel]`: set slowmode, 0 turns it off (needs Manage Channels)\n"
-        "`/lock [channel]` / `/unlock [channel]`: stop or allow @everyone sending messages "
+        "`/modtools unban user_id reason`: unban someone by ID (needs Ban Members)\n"
+        "`/modtools clearwarnings user`: remove all of a user's warnings (needs Moderate Members)\n"
+        "`/modtools slowmode seconds [channel]`: set slowmode, 0 turns it off (needs Manage Channels)\n"
+        "`/modtools lock [channel]` / `/modtools unlock [channel]`: stop or allow @everyone sending messages "
         "(needs Manage Channels)\n"
-        "`/userinfo [member]`: account age, join date, roles and timeout status. Anyone can use it.\n\n"
-        "The bot needs the same permission as you for each command. Everything except `/userinfo` is logged."),
+        "`/modtools userinfo [member]`: account age, join date, roles and timeout status. Anyone can use it.\n\n"
+        "The bot needs the same permission as you for each command. Everything except `/modtools userinfo` is logged."),
     "Welcome, bye & booster": (
         "Post a custom embed when someone joins, leaves or boosts the server. Needs Manage Server.\n\n"
         "`/welcome setup channel [title] [message] [image] [image_url]`\n"
@@ -162,11 +162,11 @@ PAGES: dict[str, str] = {
         "of days. `/gate allow user_id` lets one trusted new account in. `off` and `status`.\n"
         "**/quarantine add member [reason] [hours]**: saves and removes all of a member's roles and times them out. "
         "**/quarantine release member** gives everything back. `list` shows who is quarantined.\n"
-        "**/securityscan**: checks your server for risky permissions (everyone, admin bots, too many admins), low "
+        "**/raid scan**: checks your server for risky permissions (everyone, admin bots, too many admins), low "
         "verification and missing 2FA, and tells you what to fix.\n"
         "**/raid on|off|status**: raid mode. While ON, every new member who joins is kicked (or banned) and told to try "
         "later. `/raid off` lets people in again and shows how many were blocked.\n"
-        "**/raidclean minutes [action] [only_no_roles]**: after a raid, preview everyone who joined in the last few "
+        "**/raid clean minutes [action] [only_no_roles]**: after a raid, preview everyone who joined in the last few "
         "minutes and ban or kick them with one confirm button. Members with roles are skipped by default."),
     "Party games": (
         "**/story**: `start title opening`, then everyone `add`s one sentence (never twice in a row). `read` shows it so "
@@ -254,19 +254,21 @@ PAGES: dict[str, str] = {
     "Premium features": (
         "Five extra commands for members with premium (granted by staff with `/premiumadmin grant member`, "
         "removed with `/premiumadmin revoke`, listed with `/premiumadmin list`). Staff and the owner can always use them.\n\n"
-        "**/afk [reason]**: marks you AFK. If someone mentions you, I reply with your reason. Speaking again clears it.\n"
-        "**/snipe**: shows the last deleted message in the channel (up to 15 minutes old).\n"
-        "**/stealemoji emoji [name]**: paste a custom emoji from another server (or an image link + name) to add it "
+        "**/premiumutil afk [reason]**: marks you AFK. If someone mentions you, I reply with your reason. Speaking again "
+        "clears it.\n"
+        "**/premiumutil snipe**: shows the last deleted message in the channel (up to 15 minutes old).\n"
+        "**/premiumutil stealemoji emoji [name]**: paste a custom emoji from another server (or an image link + name) to add it "
         "here. Needs Manage Expressions.\n"
         "**/autoresponder add|remove|list**: I auto-reply when someone says a trigger word or phrase "
         "(up to 15 per server).\n"
         "**/sticky set|off**: keeps a message pinned to the bottom of a channel, reposting it as new messages come in.\n"
-        "**/embed description [channel] [title] [color] [image_url] [footer]**: post a custom embed as the bot.\n"
-        "**/archive [limit]**: export up to 500 recent messages in the channel to a text file.\n"
-        "**/poll question options [minutes]**: a reaction poll with up to 10 options; optionally auto-announces "
+        "**/premiumposts embed description [channel] [title] [color] [image_url] [footer]**: post a custom embed as "
+        "the bot.\n"
+        "**/premiumposts archive [limit]**: export up to 500 recent messages in the channel to a text file.\n"
+        "**/premiumposts poll question options [minutes]**: a reaction poll with up to 10 options; optionally auto-announces "
         "the winner.\n"
         "**/bio set|show**: a short personal bio members can show each other.\n"
-        "**/spotlight message_link channel**: repost a great message into a highlights channel."),
+        "**/premiumposts spotlight message_link channel**: repost a great message into a highlights channel."),
 
     "Surprise box": (
         "A mystery button. Members press **Open the box** and something happens. The panel and the replies "
